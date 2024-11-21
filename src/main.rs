@@ -1,4 +1,7 @@
-use baldguard::{Database, Db, SendUpdate, Session};
+use baldguard::{
+    database::Db,
+    session::{SendUpdate, Session},
+};
 use std::{collections::HashMap, process::exit, sync::Arc, time::Duration};
 use teloxide::{
     prelude::Requester,
@@ -44,7 +47,7 @@ async fn main() {
 
     let sessions: Sessions = Arc::new(Mutex::new(HashMap::new()));
     let sessions_clone = sessions.clone();
-    let database: Database = Arc::new(Mutex::new(match Db::new(&connection_str).await {
+    let database: Arc<Mutex<Db>> = Arc::new(Mutex::new(match Db::new(&connection_str).await {
         Ok(db) => db,
         Err(e) => {
             log::error!("Failed to create database: {e}");
