@@ -100,7 +100,6 @@ pub enum SendUpdate {
 pub struct Session {
     db: Database,
     parser: ExpressionParser,
-    chat_id: ChatId,
     chat: Chat,
     variables: Variables,
     last_active: Instant,
@@ -114,7 +113,6 @@ impl Session {
         Ok(Session {
             db,
             parser: ExpressionParser::new(),
-            chat_id,
             chat,
             variables: Variables::new(),
             last_active: Instant::now(),
