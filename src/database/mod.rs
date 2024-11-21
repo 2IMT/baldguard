@@ -1,6 +1,6 @@
 mod migrations;
 
-use super::language::tree::Expression;
+use super::{error::GenericError, language::tree::Expression};
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -56,7 +56,11 @@ impl Db {
             .build();
         chats.create_index(index_model).await?;
 
-        migrate(&database).await?;
+        if let Err(e) = migrate(&database).await {
+            return Err(Box::new(GenericError::from(format!(
+                "database migration error: {e}"
+            ))));
+        }
 
         Ok(Db { chats })
     }
