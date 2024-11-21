@@ -1,0 +1,112 @@
+use super::tree::{Operator, Literal, Expression};
+use super::parse_error;
+use std::str::FromStr;
+use lalrpop_util::ParseError;
+use unescape::unescape;
+
+grammar;
+
+extern {
+    type Error = parse_error::ParseError;
+}
+
+pub Expression: Box<Expression> = {
+    #[precedence(level="0")]
+
+    <t:Term> => t,
+
+    #[precedence(level="1")]
+
+    "not" <e:Expression> =>
+        Box::new(Expression::UnaryOp { expression: e, operator: Operator::Not }),
+
+    #[precedence(level="2")] #[assoc(side="left")]
+
+    <l:Expression> "=" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Equal, right: r }),
+
+    <l:Expression> "!=" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::NotEqual, right: r }),
+
+    #[precedence(level="3")] #[assoc(side="left")]
+
+    <l:Expression> "and" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::And, right: r }),
+    <l:Expression> "nand" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Nand, right: r }),
+
+    #[precedence(level="4")] #[assoc(side="left")]
+
+    <l:Expression> "or" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Or, right: r }),
+    <l:Expression> "nor" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Nor, right: r }),
+    <l:Expression> "xor" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Xor, right: r }),
+
+    #[precedence(level="5")]
+
+    "+" <e:Expression> =>
+        Box::new(Expression::UnaryOp { expression: e, operator: Operator::Plus }),
+    "-" <e:Expression> =>
+        Box::new(Expression::UnaryOp { expression: e, operator: Operator::Minus }),
+
+    #[precedence(level="6")] #[assoc(side="left")]
+
+    <l:Expression> "*" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Multiply, right: r }),
+    <l:Expression> "/" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Divide, right: r }),
+
+    #[precedence(level="7")] #[assoc(side="left")]
+
+    <l:Expression> "matches" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Matches, right: r }),
+
+    #[precedence(level="8")] #[assoc(side="left")]
+
+    <l:Expression> "+" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Plus, right: r }),
+    <l:Expression> "-" <r:Expression> =>
+        Box::new(Expression::BinaryOp { left: l, operator: Operator::Minus, right: r }),
+};
+
+pub Term: Box<Expression> = {
+    Identifier =>
+        Box::new(Expression::Identifier(<>)),
+    Literal =>
+        Box::new(Expression::Literal(<>)),
+    "(" <e:Expression> ")" => e,
+}
+
+match {
+    r"(true)|(false)" => bool,
+    "empty",
+} else {
+    r"\-?[0-9]+" => int,
+    r#""((?:[^"\\]|\\.)*)""# => str,
+    r"[a-zA-Z_][a-zA-Z0-9_]*" => identifier,
+    _
+}
+
+pub Identifier: String = identifier => <>.to_string();
+
+pub Literal: Literal = {
+    int =>?
+        i64::from_str(<>)
+            .map_err(|_| ParseError::User {
+                error: parse_error::ParseError::IntegerOverflow(<>.to_string()),
+            })
+            .and_then(|i| Ok(Literal::Int(i))),
+    <l:str> =>?
+        match unescape(&l[1..l.len()-1]) {
+            Some(string) => Ok(Literal::Str(string)),
+            None => Err(ParseError::User {
+                error: parse_error::ParseError::InvalidEscapeSequence(l[1..l.len()-1].to_string()),
+            }),
+        },
+    bool =>
+        Literal::Bool(if <> == "true" { true } else { false } ),
+    "empty" =>
+        Literal::Empty,
+};
