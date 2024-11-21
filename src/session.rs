@@ -18,6 +18,7 @@ pub enum SendUpdate {
 }
 
 pub struct Session {
+    chat_id: ChatId,
     db: Arc<Mutex<Db>>,
     parser: ExpressionParser,
     chat: Chat,
@@ -31,12 +32,17 @@ impl Session {
         let chat = db_lock.find_chat_by_id(chat_id.0).await?;
         drop(db_lock);
         Ok(Session {
+            chat_id,
             db,
             parser: ExpressionParser::new(),
             chat,
             variables: Variables::new(),
             last_active: Instant::now(),
         })
+    }
+
+    pub fn chat_id(&self) -> ChatId {
+        self.chat_id
     }
 
     pub fn refresh(&mut self) {

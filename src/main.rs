@@ -20,7 +20,14 @@ async fn session_cleanup_routine(sessions: Sessions) {
 
         let mut sessions_lock = sessions.lock().await;
 
-        sessions_lock.retain(|&_, session| !session.is_timed_out(timeout_duration));
+        sessions_lock.retain(|&_, session| {
+            if session.is_timed_out(timeout_duration) {
+                log::info!("Closing session for {}", session.chat_id());
+                false
+            } else {
+                true
+            }
+        });
     }
 }
 
@@ -70,11 +77,12 @@ async fn main() {
             } else {
                 match Session::new(database, chat_id).await {
                     Ok(session) => {
+                        log::info!("Opening session for {chat_id}");
                         sessions_lock.insert(chat_id, session);
                         sessions_lock.get_mut(&chat_id).unwrap()
                     }
                     Err(e) => {
-                        log::error!("Failed to create session for {chat_id}: {e}");
+                        log::error!("Failed to open session for {chat_id}: {e}");
                         return Ok(());
                     }
                 }
