@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 #[derive(Clone, Debug)]
 pub struct GenericError {
@@ -16,3 +16,5 @@ impl Display for GenericError {
         write!(f, "{}", self.message)
     }
 }
+
+impl Error for GenericError {}
