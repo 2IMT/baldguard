@@ -1,5 +1,7 @@
+mod migrations;
+
 use super::language::tree::Expression;
-use mongodb::{bson::doc, options::IndexOptions, Client, Collection, IndexModel};
+use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
@@ -8,12 +10,12 @@ pub struct Settings {
     pub debug_print: bool,
     pub report_filtered: bool,
     pub report_invalid_commands: bool,
+    pub filter_enabled: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Chat {
     pub chat_id: i64,
-    pub filter_enabled: bool,
     pub filter: Option<Expression>,
     pub settings: Settings,
 }
@@ -22,12 +24,12 @@ impl Default for Chat {
     fn default() -> Self {
         Chat {
             chat_id: 0,
-            filter_enabled: true,
             filter: None,
             settings: Settings {
                 debug_print: false,
                 report_filtered: true,
                 report_invalid_commands: true,
+                filter_enabled: true,
             },
         }
     }
@@ -38,7 +40,7 @@ pub struct Db {
 }
 
 impl Db {
-    pub async fn new(connection_string: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(connection_string: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client = Client::with_uri_str(connection_string).await?;
         let database = client.database("baldguard");
         let chats: Collection<Chat> = database.collection("chats");
@@ -52,8 +54,10 @@ impl Db {
             .keys(index_keys)
             .options(index_options)
             .build();
-
         chats.create_index(index_model).await?;
+
+        migrate(&database).await?;
+
         Ok(Db { chats })
     }
 
@@ -77,4 +81,43 @@ impl Db {
 
         Ok(())
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Migration {
+    name: String,
+}
+
+async fn migrate(db: &Database) -> Result<(), Box<dyn Error + Send + Sync>> {
+    log::info!("Migrating the database...");
+
+    let migrations: Collection<Migration> = db.collection("migrations");
+
+    let index_keys = doc! { "name": 1 };
+    let index_options = IndexOptions::builder()
+        .unique(true)
+        .name(Some("name_unique_ascending".to_string()))
+        .build();
+    let index_model = IndexModel::builder()
+        .keys(index_keys)
+        .options(index_options)
+        .build();
+    migrations.create_index(index_model).await?;
+
+    for mut migration_action in migrations::get_vec() {
+        if let None = migrations
+            .find_one(doc! { "name": migration_action.name.to_string() })
+            .await?
+        {
+            log::info!("Applying migration {}...", migration_action.name);
+            migration_action.run(db.clone()).await?;
+            migrations
+                .insert_one(Migration {
+                    name: migration_action.name,
+                })
+                .await?;
+        }
+    }
+
+    Ok(())
 }

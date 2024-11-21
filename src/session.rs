@@ -184,7 +184,7 @@ display this message."
                                         match evaluate(&expression, &self.variables) {
                                             Ok(value) => match value {
                                                 Value::Bool(value) => {
-                                                    self.chat.filter_enabled = value;
+                                                    self.chat.settings.filter_enabled = value;
                                                 }
                                                 _ => result.push(SendUpdate::Message(
                                                     "error: expression evaluated to non-bool value"
@@ -210,7 +210,7 @@ display this message."
             None => {}
         }
 
-        if !is_valid_command && self.chat.filter_enabled {
+        if !is_valid_command && self.chat.settings.filter_enabled {
             let variables = Variables::from(&message);
             if let Some(filter) = &self.chat.filter {
                 match evaluate(filter, &variables) {
