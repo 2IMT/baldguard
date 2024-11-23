@@ -1,4 +1,4 @@
-use super::tree::{Operator, Literal, Expression};
+use super::tree::{Operator, Literal, Expression, Assignment};
 use super::parse_error;
 use std::str::FromStr;
 use lalrpop_util::ParseError;
@@ -8,6 +8,10 @@ grammar;
 
 extern {
     type Error = parse_error::ParseError;
+}
+
+pub Assignment: Assignment = {
+    <i:Identifier> ":=" <e:Expression> => Assignment { identifier: i, expression: *e },
 }
 
 pub Expression: Box<Expression> = {
