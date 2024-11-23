@@ -19,7 +19,7 @@ struct Derived {
     fields: Vec<Field>,
 }
 
-fn parse(input: DeriveInput) -> Result<Derived, Error> {
+fn parse(input: DeriveInput, allow_optional: bool) -> Result<Derived, Error> {
     let mut result = Derived {
         name: input.ident.clone(),
         fields: Vec::new(),
@@ -31,14 +31,11 @@ fn parse(input: DeriveInput) -> Result<Derived, Error> {
         } else {
             return Err(Error::new(
                 s.fields.span(),
-                "IntoVariables only supports structs with named fields",
+                "Only structs with named fields are supported",
             ));
         }
     } else {
-        return Err(Error::new(
-            input.ident.span(),
-            "Cannot derive IntoVariables for non-struct type",
-        ));
+        return Err(Error::new(input.ident.span(), "Only structs are supported"));
     };
 
     result.fields.reserve(fields.named.len());
@@ -69,6 +66,13 @@ fn parse(input: DeriveInput) -> Result<Derived, Error> {
             }
         };
 
+        if !allow_optional && optional {
+            return Err(Error::new(
+                field.ty.span(),
+                "Option fields are not supported",
+            ));
+        }
+
         let field = Field { name, ty, optional };
 
         result.fields.push(field);
@@ -80,7 +84,7 @@ fn parse(input: DeriveInput) -> Result<Derived, Error> {
 #[proc_macro_derive(ToVariables)]
 pub fn to_variables(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let input = match parse(input) {
+    let input = match parse(input, true) {
         Ok(input) => input,
         Err(e) => {
             return e.to_compile_error().into();
@@ -95,17 +99,20 @@ pub fn to_variables(input: TokenStream) -> TokenStream {
         let put = match field.ty {
             FieldType::Int => {
                 quote! {
-                    result.put(std::stringify!(#field_name).to_string(), baldguard_language::evaluation::Value::Int(value));
+                    result.put(::std::stringify!(#field_name).to_string(),
+                        ::baldguard_language::evaluation::Value::Int(value));
                 }
             }
             FieldType::Str => {
                 quote! {
-                    result.put(std::stringify!(#field_name).to_string(), baldguard_language::evaluation::Value::Str(value));
+                    result.put(::std::stringify!(#field_name).to_string(),
+                        ::baldguard_language::evaluation::Value::Str(value));
                 }
             }
             FieldType::Bool => {
                 quote! {
-                    result.put(std::stringify!(#field_name).to_string(), baldguard_language::evaluation::Value::Bool(value));
+                    result.put(::std::stringify!(#field_name).to_string(),
+                        ::baldguard_language::evaluation::Value::Bool(value));
                 }
             }
         };
@@ -115,7 +122,8 @@ pub fn to_variables(input: TokenStream) -> TokenStream {
                 if let Some(value) = self.#field_name {
                     #put
                 } else {
-                    result.put(std::stringify!(#field_name).to_string(), baldguard_language::evaluation::Value::Empty);
+                    result.put(::std::stringify!(#field_name).to_string(),
+                        ::baldguard_language::evaluation::Value::Empty);
                 }
             }
         } else {
@@ -128,15 +136,130 @@ pub fn to_variables(input: TokenStream) -> TokenStream {
         assignments.push(assignment);
     }
 
-    let output = quote! {
-        impl baldguard_language::evaluation::ToVariables for #name {
-            fn to_variables(self) -> baldguard_language::evaluation::Variables {
-                let mut result = baldguard_language::evaluation::Variables::new();
+    quote! {
+        impl ::baldguard_language::evaluation::ToVariables for #name {
+            fn to_variables(self) -> ::baldguard_language::evaluation::Variables {
+                let mut result = ::baldguard_language::evaluation::Variables::new();
                 #(#assignments)*
                 result
             }
         }
+    }
+    .into()
+}
+
+#[proc_macro_derive(SetFromAssignment)]
+pub fn set_from_assignment(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let input = match parse(input, true) {
+        Ok(input) => input,
+        Err(e) => {
+            return e.to_compile_error().into();
+        }
     };
 
-    TokenStream::from(output)
+    let name = input.name;
+    let mut cases = Vec::new();
+    for field in input.fields {
+        let field_name = field.name;
+
+        let (needed_type, correct_case) = match field.ty {
+            FieldType::Int => (
+                "int",
+                quote! {
+                    ::baldguard_language::evaluation::Value::Int(value)
+                },
+            ),
+            FieldType::Str => (
+                "str",
+                quote! {
+                    ::baldguard_language::evaluation::Value::Str(value)
+                },
+            ),
+            FieldType::Bool => (
+                "bool",
+                quote! {
+                    ::baldguard_language::evaluation::Value::Bool(value)
+                },
+            ),
+        };
+
+        let wrong_case = quote! {
+            _ => {
+                let field_name = ::std::stringify!(#field_name);
+                let needed_type = #needed_type;
+                return Err(::baldguard_language::evaluation::ValueError::new_other(
+                    ::std::format!("variable {} shoud be of type {}", field_name, needed_type)
+                ).into());
+            },
+        };
+
+        let assign = if field.optional {
+            quote! {
+                match value {
+                    #correct_case => {
+                        self.#field_name = ::std::option::Option::Some(value);
+                    },
+                    ::baldguard_language::evaluation::Value::Empty => {
+                        self.#field_name = ::std::option::Option::None;
+                    },
+                    #wrong_case
+                }
+            }
+        } else {
+            quote! {
+                match value {
+                    #correct_case => {
+                        self.#field_name = value;
+                    },
+                    ::baldguard_language::evaluation::Value::Empty => {
+                        let field_name = ::std::stringify!(#field_name);
+                        return Err(::baldguard_language::evaluation::ValueError::new_other(
+                            ::std::format!("variable {} cannot be empty", field_name)
+                        ).into());
+                    },
+                    #wrong_case
+                }
+            }
+        };
+
+        let case = quote! {
+            stringify!(#field_name) => {
+                #assign
+            }
+        };
+
+        cases.push(case);
+    }
+
+    let output: TokenStream = quote! {
+        impl ::baldguard_language::evaluation::SetFromAssignment for #name {
+            fn set_from_assignment(&mut self, assignment: ::baldguard_language::tree::Assignment)
+            -> Result<(), ::baldguard_language::evaluation::EvaluationError> {
+                let variables = ::baldguard_language::evaluation::Variables::new();
+                let value = match ::baldguard_language::evaluation::evaluate(&assignment.expression, &variables) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        return Err(e);
+                    },
+                };
+
+                match assignment.identifier.as_str() {
+                    #(#cases),*,
+
+                    identifier => {
+                        return Err(
+                            ::baldguard_language::evaluation::EvaluationError::UndeclaredIndentifier(
+                                identifier.to_string()));
+                    }
+                }
+
+                Ok(())
+            }
+        }
+    }
+    .into();
+
+    println!("{output}");
+    output
 }

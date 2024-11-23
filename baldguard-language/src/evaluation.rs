@@ -67,6 +67,9 @@ pub enum ValueError {
         regex: String,
         message: String,
     },
+    Other {
+        message: String,
+    },
 }
 
 impl ValueError {
@@ -88,6 +91,10 @@ impl ValueError {
 
     pub fn new_invalid_regex(regex: String, message: String) -> Self {
         ValueError::InvalidRegex { regex, message }
+    }
+
+    pub fn new_other(message: String) -> Self {
+        ValueError::Other { message }
     }
 }
 
@@ -113,6 +120,7 @@ impl Display for ValueError {
             ValueError::InvalidRegex { regex, message } => {
                 write!(f, "invalid regex \"{regex}\": {message}")
             }
+            ValueError::Other { message } => write!(f, "{message}"),
         }
     }
 }
