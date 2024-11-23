@@ -1,7 +1,7 @@
 use super::database::{Chat, Db};
 use baldguard_language::{
     evaluation::{evaluate, ContainsVariable, SetFromAssignment, Value, Variables},
-    grammar::{AssignmentParser, ExpressionParser},
+    grammar::{AssignmentParser, ExpressionParser, IdentifierParser},
 };
 use baldguard_macros::{ContainsVariable, ToVariables};
 use std::{
@@ -44,6 +44,7 @@ pub struct Session {
     db: Arc<Mutex<Db>>,
     expression_parser: ExpressionParser,
     assignment_parser: AssignmentParser,
+    identifier_parser: IdentifierParser,
     chat: Chat,
     last_active: Instant,
 }
@@ -321,7 +322,9 @@ impl Session {
                                                 result.push(SendUpdate::Message(format!(
                                                     "failed to set variable: \"{}\" is reserved",
                                                     assignment.identifier
-                                                )))
+                                                )));
+
+                                                command_failed = true;
                                             } else {
                                                 if let Err(e) =
                                                     self.chat.variables.set_from_assignment(
@@ -334,6 +337,27 @@ impl Session {
                                                         "failed to set variable: {e}"
                                                     )));
                                                 }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
+                                    }
+                                }
+                                Command::UnsetVariable(arg) => {
+                                    command_requires_success_report = true;
+
+                                    match self.identifier_parser.parse(&arg) {
+                                        Ok(identifier) => {
+                                            if !self.chat.variables.remove(&identifier) {
+                                                result.push(SendUpdate::Message(format!(
+                                                    "variable \"{identifier}\" does not exist"
+                                                )));
+
+                                                command_failed = true;
                                             }
                                         }
                                         Err(e) => {
@@ -464,6 +488,7 @@ enum Command {
     SetFilter(String),
     SetOption(String),
     SetVariable(String),
+    UnsetVariable(String),
     GetVariables,
     Help,
 }
@@ -508,6 +533,13 @@ impl Command {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
                     }
+                    "/unset_variable" => {
+                        if let Some(arg) = rest {
+                            Ok(Some(Command::UnsetVariable(arg.to_string())))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
                     "/get_variables" => {
                         if let None = rest {
                             Ok(Some(Command::GetVariables))
@@ -545,6 +577,7 @@ impl Command {
             Command::GetVariables => false,
             Command::Help => false,
             Command::SetVariable(_) => true,
+            Command::UnsetVariable(_) => true,
         }
     }
 }
