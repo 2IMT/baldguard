@@ -233,6 +233,7 @@ impl Session {
             db,
             expression_parser: ExpressionParser::new(),
             assignment_parser: AssignmentParser::new(),
+            identifier_parser: IdentifierParser::new(),
             chat,
             last_active: Instant::now(),
         })
