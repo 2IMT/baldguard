@@ -1,7 +1,6 @@
 use super::tree::{Expression, Literal, Operator};
 use regex::Regex;
 use std::{collections::HashMap, convert::From, fmt::Display, result::Result};
-use teloxide::types::{Message, MessageOrigin};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -309,6 +308,10 @@ pub struct Variables {
     values: HashMap<String, Value>,
 }
 
+pub trait ToVariables {
+    fn to_variables(self) -> Variables;
+}
+
 impl Variables {
     pub fn new() -> Self {
         Variables {
@@ -341,163 +344,12 @@ impl Display for Variables {
     }
 }
 
-impl From<&Message> for Variables {
-    fn from(value: &Message) -> Self {
-        let mut result = Self::new();
-
-        macro_rules! insert_int {
-            ($key:expr, $value:expr) => {
-                result.put($key.to_string(), Value::Int($value));
-            };
-        }
-        macro_rules! insert_str {
-            ($key:expr, $value:expr) => {
-                result.put($key.to_string(), Value::Str($value));
-            };
-        }
-        macro_rules! insert_bool {
-            ($key:expr, $value:expr) => {
-                result.put($key.to_string(), Value::Bool($value));
-            };
-        }
-        macro_rules! insert_empty {
-            ($key:expr) => {
-                result.put($key.to_string(), Value::Empty);
-            };
-        }
-
-        insert_bool!("has_from", false);
-        insert_empty!("from_id");
-        insert_empty!("from_is_bot");
-        insert_empty!("from_username");
-        insert_empty!("from_is_premium");
-
-        insert_bool!("has_origin", false);
-        insert_empty!("origin_type");
-        insert_empty!("origin_user_id");
-        insert_empty!("origin_user_bot");
-        insert_empty!("origin_user_username");
-        insert_empty!("origin_hidden_user_username");
-        insert_empty!("origin_chat_id");
-        insert_empty!("origin_chat_author_signature");
-        insert_empty!("origin_channel_id");
-        insert_empty!("origin_channel_message_id");
-        insert_empty!("origin_channel_author_signature");
-
-        insert_bool!("has_text", false);
-        insert_empty!("text");
-
-        insert_empty!("has_audio");
-        insert_empty!("has_document");
-        insert_empty!("has_animation");
-        insert_empty!("has_game");
-        insert_empty!("has_photo");
-        insert_empty!("has_sticker");
-        insert_empty!("has_story");
-        insert_empty!("has_video");
-        insert_empty!("has_voice");
-
-        insert_bool!("has_caption", false);
-        insert_empty!("caption");
-
-        if let Some(from) = &value.from {
-            insert_bool!("has_from", true);
-            insert_int!("from_id", from.id.0 as i64);
-            insert_bool!("from_is_bot", from.is_bot);
-            if let Some(username) = &from.username {
-                insert_str!("from_username", username.to_string());
-            }
-            insert_bool!("from_is_premium", from.is_premium);
-        }
-
-        if let Some(origin) = &value.forward_origin() {
-            insert_bool!("has_origin", true);
-
-            match origin {
-                MessageOrigin::User {
-                    date: _,
-                    sender_user,
-                } => {
-                    insert_str!("origin_type", "user".to_string());
-                    insert_int!("origin_user_id", sender_user.id.0 as i64);
-                    insert_bool!("origin_user_bot", sender_user.is_bot);
-                    if let Some(username) = &sender_user.username {
-                        insert_str!("origin_user_username", username.to_string());
-                    }
-                }
-                MessageOrigin::HiddenUser {
-                    date: _,
-                    sender_user_name,
-                } => {
-                    insert_str!("origin_type", "hidden_user".to_string());
-                    insert_str!("origin_hidden_user_username", sender_user_name.to_string());
-                }
-                MessageOrigin::Chat {
-                    date: _,
-                    sender_chat,
-                    author_signature,
-                } => {
-                    insert_str!("origin_type", "chat".to_string());
-                    insert_int!("origin_chat_id", sender_chat.id.0 as i64);
-                    if let Some(signature) = author_signature {
-                        insert_str!("origin_chat_author_signature", signature.to_string());
-                    }
-                }
-                MessageOrigin::Channel {
-                    date: _,
-                    chat,
-                    message_id,
-                    author_signature,
-                } => {
-                    insert_str!("origin_type", "channel".to_string());
-                    insert_int!("origin_channel_id", chat.id.0 as i64);
-                    insert_int!("origin_channel_message_id", message_id.0 as i64);
-                    if let Some(signature) = author_signature {
-                        insert_str!("origin_channel_author_signature", signature.to_string());
-                    }
-                }
-            }
-        }
-
-        if let Some(text) = value.text() {
-            insert_bool!("has_text", true);
-            insert_str!("text", text.to_string());
-        }
-
-        if value.audio().is_some() {
-            insert_bool!("has_audio", true);
-        }
-        if value.document().is_some() {
-            insert_bool!("has_document", true);
-        }
-        if value.animation().is_some() {
-            insert_bool!("has_animation", true);
-        }
-        if value.game().is_some() {
-            insert_bool!("has_game", true);
-        }
-        if value.photo().is_some() {
-            insert_bool!("has_photo", true);
-        }
-        if value.sticker().is_some() {
-            insert_bool!("has_sticker", true);
-        }
-        if value.story().is_some() {
-            insert_bool!("has_story", true);
-        }
-        if value.video().is_some() {
-            insert_bool!("has_video", true);
-        }
-        if value.voice().is_some() {
-            insert_bool!("has_voice", true);
-        }
-
-        if let Some(caption) = value.caption() {
-            insert_bool!("has_caption", true);
-            insert_str!("caption", caption.to_string());
-        }
-
-        result
+impl<T> From<T> for Variables
+where
+    T: ToVariables,
+{
+    fn from(value: T) -> Self {
+        value.to_variables()
     }
 }
 

@@ -1,15 +1,16 @@
 use super::database::{Chat, Db};
-use super::language::{
+use baldguard_language::{
     evaluation::{evaluate, Value, Variables},
     grammar::ExpressionParser,
 };
+use derive_to_variables::ToVariables;
 use std::{
     error::Error,
     fmt::Display,
     sync::Arc,
     time::{Duration, Instant},
 };
-use teloxide::types::{ChatId, Message, MessageId};
+use teloxide::types::{ChatId, Message, MessageId, MessageOrigin};
 use tokio::sync::Mutex;
 
 pub enum SendUpdate {
@@ -24,6 +25,180 @@ pub struct Session {
     chat: Chat,
     variables: Variables,
     last_active: Instant,
+}
+
+#[derive(Debug, Clone, ToVariables)]
+struct MessageVariables {
+    has_from: bool,
+    from_id: Option<i64>,
+    from_is_bot: Option<bool>,
+    from_username: Option<String>,
+    from_is_premium: Option<bool>,
+    has_origin: bool,
+    origin_type: Option<String>,
+    origin_user_id: Option<i64>,
+    origin_user_is_bot: Option<bool>,
+    origin_user_username: Option<String>,
+    origin_hidden_user_username: Option<String>,
+    origin_chat_id: Option<i64>,
+    origin_chat_author_signature: Option<String>,
+    origin_channel_id: Option<i64>,
+    origin_channel_message_id: Option<i64>,
+    origin_channel_author_signature: Option<String>,
+    has_text: bool,
+    text: Option<String>,
+    has_audio: bool,
+    has_document: bool,
+    has_animation: bool,
+    has_game: bool,
+    has_photo: bool,
+    has_sticker: bool,
+    has_story: bool,
+    has_video: bool,
+    has_voice: bool,
+    has_caption: bool,
+    caption: Option<String>,
+}
+
+impl Default for MessageVariables {
+    fn default() -> Self {
+        MessageVariables {
+            has_from: false,
+            from_id: None,
+            from_is_bot: None,
+            from_username: None,
+            from_is_premium: None,
+            has_origin: false,
+            origin_type: None,
+            origin_user_id: None,
+            origin_user_is_bot: None,
+            origin_user_username: None,
+            origin_hidden_user_username: None,
+            origin_chat_id: None,
+            origin_chat_author_signature: None,
+            origin_channel_id: None,
+            origin_channel_message_id: None,
+            origin_channel_author_signature: None,
+            has_text: false,
+            text: None,
+            has_audio: false,
+            has_document: false,
+            has_animation: false,
+            has_game: false,
+            has_photo: false,
+            has_sticker: false,
+            has_story: false,
+            has_video: false,
+            has_voice: false,
+            has_caption: false,
+            caption: None,
+        }
+    }
+}
+
+impl From<&Message> for MessageVariables {
+    fn from(value: &Message) -> Self {
+        let mut result = MessageVariables::default();
+
+        if let Some(from) = &value.from {
+            result.has_from = true;
+            result.from_id = Some(from.id.0 as i64);
+            result.from_is_bot = Some(from.is_bot);
+            if let Some(username) = &from.username {
+                result.from_username = Some(username.to_string());
+            }
+            result.from_is_premium = Some(from.is_premium);
+        }
+
+        if let Some(origin) = &value.forward_origin() {
+            result.has_origin = true;
+
+            match origin {
+                MessageOrigin::User {
+                    date: _,
+                    sender_user,
+                } => {
+                    result.origin_type = Some("user".to_string());
+                    result.origin_user_id = Some(sender_user.id.0 as i64);
+                    result.origin_user_is_bot = Some(sender_user.is_bot);
+                    if let Some(username) = &sender_user.username {
+                        result.origin_user_username = Some(username.to_string());
+                    }
+                }
+                MessageOrigin::HiddenUser {
+                    date: _,
+                    sender_user_name,
+                } => {
+                    result.origin_type = Some("hidden_user".to_string());
+                    result.origin_hidden_user_username = Some(sender_user_name.to_string());
+                }
+                MessageOrigin::Chat {
+                    date: _,
+                    sender_chat,
+                    author_signature,
+                } => {
+                    result.origin_type = Some("chat".to_string());
+                    result.origin_chat_id = Some(sender_chat.id.0 as i64);
+                    if let Some(signature) = author_signature {
+                        result.origin_chat_author_signature = Some(signature.to_string());
+                    }
+                }
+                MessageOrigin::Channel {
+                    date: _,
+                    chat,
+                    message_id,
+                    author_signature,
+                } => {
+                    result.origin_type = Some("channel".to_string());
+                    result.origin_channel_id = Some(chat.id.0 as i64);
+                    result.origin_channel_message_id = Some(message_id.0 as i64);
+                    if let Some(signature) = author_signature {
+                        result.origin_channel_author_signature = Some(signature.to_string());
+                    }
+                }
+            }
+        }
+
+        if let Some(text) = value.text() {
+            result.has_text = true;
+            result.text = Some(text.to_string());
+        }
+
+        if value.audio().is_some() {
+            result.has_audio = true;
+        }
+        if value.document().is_some() {
+            result.has_document = true;
+        }
+        if value.animation().is_some() {
+            result.has_animation = true;
+        }
+        if value.game().is_some() {
+            result.has_game = true;
+        }
+        if value.photo().is_some() {
+            result.has_photo = true;
+        }
+        if value.sticker().is_some() {
+            result.has_sticker = true;
+        }
+        if value.story().is_some() {
+            result.has_story = true;
+        }
+        if value.video().is_some() {
+            result.has_video = true;
+        }
+        if value.voice().is_some() {
+            result.has_voice = true;
+        }
+
+        if let Some(caption) = value.caption() {
+            result.has_caption = true;
+            result.caption = Some(caption.to_string());
+        }
+
+        result
+    }
 }
 
 impl Session {
@@ -151,7 +326,8 @@ impl Session {
                                 },
                                 Command::GetVariables => {
                                     if let Some(message) = message.reply_to_message() {
-                                        let variables = Variables::from(message);
+                                        let variables = MessageVariables::from(message);
+                                        let variables = Variables::from(variables);
                                         result.push(SendUpdate::Message(format!("{variables}")));
                                     } else {
                                         result.push(SendUpdate::Message(
@@ -211,7 +387,8 @@ display this message."
         }
 
         if !is_valid_command && self.chat.settings.filter_enabled {
-            let variables = Variables::from(&message);
+            let variables = MessageVariables::from(&message);
+            let variables: Variables = Variables::from(variables);
             if let Some(filter) = &self.chat.filter {
                 match evaluate(filter, &variables) {
                     Ok(value) => match value {
