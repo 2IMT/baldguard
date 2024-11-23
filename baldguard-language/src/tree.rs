@@ -39,3 +39,9 @@ pub enum Expression {
         operator: Operator,
     },
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Assignment {
+    pub identifier: String,
+    pub expression: Expression,
+}

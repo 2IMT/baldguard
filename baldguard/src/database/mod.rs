@@ -2,16 +2,28 @@ mod migrations;
 
 use super::error::GenericError;
 use baldguard_language::tree::Expression;
+use baldguard_macros::SetFromAssignment;
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, SetFromAssignment)]
 pub struct Settings {
     pub debug_print: bool,
     pub report_filtered: bool,
     pub report_invalid_commands: bool,
     pub filter_enabled: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            debug_print: false,
+            report_filtered: true,
+            report_invalid_commands: true,
+            filter_enabled: true,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -26,12 +38,7 @@ impl Default for Chat {
         Chat {
             chat_id: 0,
             filter: None,
-            settings: Settings {
-                debug_print: false,
-                report_filtered: true,
-                report_invalid_commands: true,
-                filter_enabled: true,
-            },
+            settings: Settings::default(),
         }
     }
 }

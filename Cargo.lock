@@ -114,7 +114,7 @@ name = "baldguard"
 version = "0.1.0"
 dependencies = [
  "baldguard-language",
- "derive-to-variables",
+ "baldguard-macros",
  "futures",
  "log",
  "mongodb",
@@ -134,6 +134,14 @@ dependencies = [
  "regex",
  "serde",
  "unescape",
+]
+
+[[package]]
+name = "baldguard-macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.89",
 ]
 
 [[package]]
@@ -405,14 +413,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "derive-to-variables"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn 2.0.89",
 ]
 
 [[package]]
