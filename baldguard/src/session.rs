@@ -289,9 +289,10 @@ impl Session {
 
                                     match self.assignment_parser.parse(&arg) {
                                         Ok(assignment) => {
-                                            if let Err(e) =
-                                                self.chat.settings.set_from_assignment(assignment)
-                                            {
+                                            if let Err(e) = self.chat.settings.set_from_assignment(
+                                                &assignment,
+                                                &self.chat.variables,
+                                            ) {
                                                 command_failed = true;
                                                 result.push(SendUpdate::Message(format!(
                                                     "failed to set option: {e}"
@@ -306,6 +307,7 @@ impl Session {
                                         }
                                     }
                                 }
+                                Command::SetVariable(arg) => {
                                 Command::GetVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
