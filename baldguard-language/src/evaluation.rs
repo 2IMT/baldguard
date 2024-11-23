@@ -372,6 +372,22 @@ where
     }
 }
 
+impl SetFromAssignment for Variables {
+    fn set_from_assignment(
+        &mut self,
+        assignment: &Assignment,
+        variables: &Variables,
+    ) -> SetFromAssignmentResult {
+        match evaluate(&assignment.expression, variables) {
+            Ok(value) => {
+                self.put(assignment.identifier.clone(), value);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
 pub enum EvaluationError {
     UndeclaredIndentifier(String),
     ValueError(ValueError),
