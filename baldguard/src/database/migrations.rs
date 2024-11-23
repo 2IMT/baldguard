@@ -34,11 +34,13 @@ async fn move_filter_enabled_to_settings(db: Database) -> MigrationActionResult 
 }
 
 async fn add_report_command_success_to_settings(db: Database) -> MigrationActionResult {
-    let chats: Collection<Document> = db.collection("Chats");
+    let chats: Collection<Document> = db.collection("chats");
     let mut cursor = chats.find(doc! {}).await?;
 
     while let Some(doc) = cursor.next().await {
         let doc = doc?;
+        let mut settings = doc.get_document("settings")?.clone();
+        settings.insert("report_command_success", true);
 
         chats
             .update_one(
@@ -47,7 +49,7 @@ async fn add_report_command_success_to_settings(db: Database) -> MigrationAction
                 },
                 doc! {
                     "$set": {
-                        "report_command_success": true
+                        "settings" : settings.clone()
                     }
                 },
             )
