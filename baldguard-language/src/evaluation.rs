@@ -309,6 +309,10 @@ pub struct Variables {
     values: HashMap<String, Value>,
 }
 
+pub trait ToVariables {
+    fn to_variables(self) -> Variables;
+}
+
 impl Variables {
     pub fn new() -> Self {
         Variables {
@@ -338,6 +342,15 @@ impl Display for Variables {
         }
 
         write!(f, "{res}")
+    }
+}
+
+impl<T> From<T> for Variables
+where
+    T: ToVariables,
+{
+    fn from(value: T) -> Self {
+        value.to_variables()
     }
 }
 
