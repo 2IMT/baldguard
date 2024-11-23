@@ -28,6 +28,9 @@ available options:
 /set_variable <variable> := <expr>
 set a variable.
 
+/unset_variable <variable>
+unset a variable.
+
 /get_variables
 retrieve variables from reply message.
 
