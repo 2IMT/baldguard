@@ -14,16 +14,19 @@ use teloxide::types::{ChatId, Message, MessageId, MessageOrigin};
 use tokio::sync::Mutex;
 
 const HELP_STRING: &str = "/set_filter <expr>
-changes current filter. expr should evaluate to bool value.
+change current filter. expr should evaluate to bool value.
 
 /set_option <option> := <expr>
-sets an option. expr should evaluate to value of option's type.
+set an option. expr should evaluate to value of option's type.
 available options:
 - debug_print: bool
 - report_filtered: bool
 - report_invalid_commands: bool
 - filter_enabled: bool
 - report_command_success: bool
+
+/set_variable <variable> := <expr>
+set a variable.
 
 /get_variables
 retrieve variables from reply message.
