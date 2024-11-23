@@ -294,12 +294,7 @@ available options:
 - report_filtered: bool
 - report_invalid_commands: bool
 - filter_enabled: bool
-
-/set_debug_print <expr>
-enables or disables debug print. expr should evaluate to bool value.
-
-/set_report_invalid_commands <expr>
-enables or disables reports about invalid commands. expr should evaluate to bool value.
+- report_command_success: bool
 
 /get_variables
 retrieve variables from reply message.
