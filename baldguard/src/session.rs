@@ -1,9 +1,9 @@
 use super::database::{Chat, Db};
 use baldguard_language::{
-    evaluation::{evaluate, SetFromAssignment, Value, Variables},
+    evaluation::{evaluate, ContainsVariable, SetFromAssignment, Value, Variables},
     grammar::{AssignmentParser, ExpressionParser},
 };
-use baldguard_macros::ToVariables;
+use baldguard_macros::{ContainsVariable, ToVariables};
 use std::{
     error::Error,
     fmt::Display,
@@ -45,7 +45,7 @@ pub struct Session {
     last_active: Instant,
 }
 
-#[derive(Debug, Clone, ToVariables)]
+#[derive(Debug, Clone, ToVariables, ContainsVariable)]
 struct MessageVariables {
     has_from: bool,
     from_id: Option<i64>,
@@ -308,6 +308,39 @@ impl Session {
                                     }
                                 }
                                 Command::SetVariable(arg) => {
+                                    command_requires_success_report = true;
+
+                                    match self.assignment_parser.parse(&arg) {
+                                        Ok(assignment) => {
+                                            if MessageVariables::default()
+                                                .contains_variable(&assignment.identifier)
+                                            {
+                                                result.push(SendUpdate::Message(format!(
+                                                    "failed to set variable: \"{}\" is reserved",
+                                                    assignment.identifier
+                                                )))
+                                            } else {
+                                                if let Err(e) =
+                                                    self.chat.variables.set_from_assignment(
+                                                        &assignment,
+                                                        &self.chat.variables.clone(),
+                                                    )
+                                                {
+                                                    command_failed = true;
+                                                    result.push(SendUpdate::Message(format!(
+                                                        "failed to set variable: {e}"
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
+                                    }
+                                }
                                 Command::GetVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
@@ -426,6 +459,7 @@ type CommandResult = Result<Option<Command>, CommandError>;
 enum Command {
     SetFilter(String),
     SetOption(String),
+    SetVariable(String),
     GetVariables,
     Help,
 }
@@ -459,6 +493,13 @@ impl Command {
                     "/set_option" => {
                         if let Some(arg) = rest {
                             Ok(Some(Command::SetOption(arg.to_string())))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
+                    "/set_variable" => {
+                        if let Some(arg) = rest {
+                            Ok(Some(Command::SetVariable(arg.to_string())))
                         } else {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
@@ -499,6 +540,7 @@ impl Command {
             Command::SetOption(_) => true,
             Command::GetVariables => false,
             Command::Help => false,
+            Command::SetVariable(_) => true,
         }
     }
 }
