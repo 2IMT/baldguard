@@ -33,6 +33,32 @@ async fn move_filter_enabled_to_settings(db: Database) -> MigrationActionResult 
     Ok(())
 }
 
+async fn add_report_command_success_to_settings(db: Database) -> MigrationActionResult {
+    let chats: Collection<Document> = db.collection("chats");
+    let mut cursor = chats.find(doc! {}).await?;
+
+    while let Some(doc) = cursor.next().await {
+        let doc = doc?;
+        let mut settings = doc.get_document("settings")?.clone();
+        settings.insert("report_command_success", true);
+
+        chats
+            .update_one(
+                doc! {
+                    "_id" : doc.get("_id").unwrap()
+                },
+                doc! {
+                    "$set": {
+                        "settings" : settings.clone()
+                    }
+                },
+            )
+            .await?;
+    }
+
+    Ok(())
+}
+
 pub fn get_vec() -> Vec<MigrationAction> {
     macro_rules! migration_action {
         ($name:ident) => {
@@ -50,7 +76,10 @@ pub fn get_vec() -> Vec<MigrationAction> {
         };
     }
 
-    migration_actions![move_filter_enabled_to_settings]
+    migration_actions![
+        move_filter_enabled_to_settings,
+        add_report_command_success_to_settings
+    ]
 }
 
 pub type MigrationActionResult = Result<(), Box<dyn Error + Send + Sync>>;

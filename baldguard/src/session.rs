@@ -13,6 +13,24 @@ use std::{
 use teloxide::types::{ChatId, Message, MessageId, MessageOrigin};
 use tokio::sync::Mutex;
 
+const HELP_STRING: &str = "/set_filter <expr>
+changes current filter. expr should evaluate to bool value.
+
+/set_option <option> := <expr>
+sets an option. expr should evaluate to value of option's type.
+available options:
+- debug_print: bool
+- report_filtered: bool
+- report_invalid_commands: bool
+- filter_enabled: bool
+- report_command_success: bool
+
+/get_variables
+retrieve variables from reply message.
+
+/help
+display this message.";
+
 pub enum SendUpdate {
     Message(String),
     DeleteMessage(MessageId),
@@ -242,6 +260,8 @@ impl Session {
 
         let mut result = Vec::with_capacity(5);
         let mut is_valid_command = false;
+        let mut command_failed = false;
+        let mut command_requires_success_report = false;
         match message.text() {
             Some(text) => match Command::new(text) {
                 Ok(command) => {
@@ -251,63 +271,56 @@ impl Session {
                         } else {
                             is_valid_command = true;
                             match command {
-                                Command::SetFilter(arg) => match self.expression_parser.parse(&arg)
-                                {
-                                    Ok(expression) => self.chat.filter = Some(*expression),
-                                    Err(e) => result
-                                        .push(SendUpdate::Message(format!("parse error: {e}"))),
-                                },
-                                Command::SetOption(arg) => match self.assignment_parser.parse(&arg)
-                                {
-                                    Ok(assignment) => {
-                                        if let Err(e) =
-                                            self.chat.settings.set_from_assignment(assignment)
-                                        {
+                                Command::SetFilter(arg) => {
+                                    command_requires_success_report = true;
+
+                                    match self.expression_parser.parse(&arg) {
+                                        Ok(expression) => self.chat.filter = Some(*expression),
+                                        Err(e) => {
+                                            command_failed = true;
                                             result.push(SendUpdate::Message(format!(
-                                                "failed to set option: {e}"
-                                            )));
+                                                "parse error: {e}"
+                                            )))
                                         }
                                     }
+                                }
+                                Command::SetOption(arg) => {
+                                    command_requires_success_report = true;
 
-                                    Err(e) => result
-                                        .push(SendUpdate::Message(format!("parse error: {e}"))),
-                                },
+                                    match self.assignment_parser.parse(&arg) {
+                                        Ok(assignment) => {
+                                            if let Err(e) =
+                                                self.chat.settings.set_from_assignment(assignment)
+                                            {
+                                                command_failed = true;
+                                                result.push(SendUpdate::Message(format!(
+                                                    "failed to set option: {e}"
+                                                )));
+                                            }
+                                        }
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
+                                    }
+                                }
                                 Command::GetVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
                                         let variables = Variables::from(variables);
                                         result.push(SendUpdate::Message(format!("{variables}")));
                                     } else {
+                                        command_failed = true;
                                         result.push(SendUpdate::Message(
                                             "error: no reply message".to_string(),
                                         ));
                                     }
                                 }
-                                Command::Help => result.push(SendUpdate::Message(
-                                    "/set_filter <expr>
-changes current filter. expr should evaluate to bool value.
-
-/set_option <option> := <expr>
-sets an option. expr should evaluate to value of option's type.
-available options:
-- debug_print: bool
-- report_filtered: bool
-- report_invalid_commands: bool
-- filter_enabled: bool
-
-/set_debug_print <expr>
-enables or disables debug print. expr should evaluate to bool value.
-
-/set_report_invalid_commands <expr>
-enables or disables reports about invalid commands. expr should evaluate to bool value.
-
-/get_variables
-retrieve variables from reply message.
-
-/help
-display this message."
-                                        .to_string(),
-                                )),
+                                Command::Help => {
+                                    result.push(SendUpdate::Message(HELP_STRING.to_string()))
+                                }
                             }
                         }
                     }
@@ -315,6 +328,14 @@ display this message."
                 Err(e) => result.push(SendUpdate::Message(format!("error: {e}"))),
             },
             None => {}
+        }
+
+        if is_valid_command
+            && command_requires_success_report
+            && !command_failed
+            && self.chat.settings.report_command_success
+        {
+            result.push(SendUpdate::Message("success".to_string()));
         }
 
         if !is_valid_command && self.chat.settings.filter_enabled {
