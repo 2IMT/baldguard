@@ -133,7 +133,6 @@ dependencies = [
  "lalrpop-util 0.21.0",
  "regex",
  "serde",
- "teloxide",
  "unescape",
 ]
 

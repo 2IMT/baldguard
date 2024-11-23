@@ -326,7 +326,8 @@ impl Session {
                                 },
                                 Command::GetVariables => {
                                     if let Some(message) = message.reply_to_message() {
-                                        let variables = Variables::from(message);
+                                        let variables = MessageVariables::from(message);
+                                        let variables = Variables::from(variables);
                                         result.push(SendUpdate::Message(format!("{variables}")));
                                     } else {
                                         result.push(SendUpdate::Message(
