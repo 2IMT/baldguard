@@ -3,7 +3,7 @@ use baldguard_language::{
     evaluation::{evaluate, Value, Variables},
     grammar::ExpressionParser,
 };
-use derive_to_variables::ToVariables;
+use baldguard_macros::ToVariables;
 use std::{
     error::Error,
     fmt::Display,
