@@ -1,6 +1,12 @@
-use super::tree::{Expression, Literal, Operator};
+use super::tree::{Assignment, Expression, Literal, Operator};
 use regex::Regex;
 use std::{collections::HashMap, convert::From, fmt::Display, result::Result};
+
+pub type SetFromAssignmentResult = Result<(), EvaluationError>;
+
+pub trait SetFromAssignment {
+    fn set_from_assignment(&mut self, assignment: Assignment) -> SetFromAssignmentResult;
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
