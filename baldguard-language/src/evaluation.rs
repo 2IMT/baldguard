@@ -13,6 +13,10 @@ pub trait SetFromAssignment {
     ) -> SetFromAssignmentResult;
 }
 
+pub trait ContainsVariable {
+    fn contains_variable(&self, identifier: &str) -> bool;
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Value {
     Int(i64),
@@ -385,6 +389,12 @@ impl SetFromAssignment for Variables {
             }
             Err(e) => Err(e),
         }
+    }
+}
+
+impl ContainsVariable for Variables {
+    fn contains_variable(&self, identifier: &str) -> bool {
+        self.values.contains_key(identifier)
     }
 }
 
