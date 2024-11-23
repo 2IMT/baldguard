@@ -59,6 +59,29 @@ async fn add_report_command_success_to_settings(db: Database) -> MigrationAction
     Ok(())
 }
 
+async fn add_variables(db: Database) -> MigrationActionResult {
+    let chats: Collection<Document> = db.collection("chats");
+    let mut cursor = chats.find(doc! {}).await?;
+
+    while let Some(doc) = cursor.next().await {
+        let mut doc = doc?;
+        doc.insert("variables", doc! {});
+
+        chats
+            .update_one(
+                doc! {
+                    "_id": doc.get("_id").unwrap()
+                },
+                doc! {
+                    "$set": doc
+                },
+            )
+            .await?;
+    }
+
+    Ok(())
+}
+
 pub fn get_vec() -> Vec<MigrationAction> {
     macro_rules! migration_action {
         ($name:ident) => {
@@ -78,7 +101,8 @@ pub fn get_vec() -> Vec<MigrationAction> {
 
     migration_actions![
         move_filter_enabled_to_settings,
-        add_report_command_success_to_settings
+        add_report_command_success_to_settings,
+        add_variables
     ]
 }
 
