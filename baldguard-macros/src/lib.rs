@@ -234,9 +234,11 @@ pub fn set_from_assignment(input: TokenStream) -> TokenStream {
 
     quote! {
         impl ::baldguard_language::evaluation::SetFromAssignment for #name {
-            fn set_from_assignment(&mut self, assignment: ::baldguard_language::tree::Assignment)
+            fn set_from_assignment(&mut self,
+                assignment: &::baldguard_language::tree::Assignment,
+                variables: &::baldguard_language::evaluation::Variables,
+            )
             -> Result<(), ::baldguard_language::evaluation::EvaluationError> {
-                let variables = ::baldguard_language::evaluation::Variables::new();
                 let value = match ::baldguard_language::evaluation::evaluate(&assignment.expression, &variables) {
                     Ok(value) => value,
                     Err(e) => {

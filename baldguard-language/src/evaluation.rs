@@ -6,7 +6,11 @@ use std::{collections::HashMap, convert::From, fmt::Display, result::Result};
 pub type SetFromAssignmentResult = Result<(), EvaluationError>;
 
 pub trait SetFromAssignment {
-    fn set_from_assignment(&mut self, assignment: Assignment) -> SetFromAssignmentResult;
+    fn set_from_assignment(
+        &mut self,
+        assignment: &Assignment,
+        variables: &Variables,
+    ) -> SetFromAssignmentResult;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
