@@ -378,7 +378,8 @@ impl Session {
 
         if !is_valid_command && self.chat.settings.filter_enabled {
             let variables = MessageVariables::from(&message);
-            let variables: Variables = Variables::from(variables);
+            let mut variables: Variables = Variables::from(variables);
+            variables.extend(self.chat.variables.clone());
             if let Some(filter) = &self.chat.filter {
                 match evaluate(filter, &variables) {
                     Ok(value) => match value {
