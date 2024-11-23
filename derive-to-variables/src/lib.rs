@@ -138,7 +138,5 @@ pub fn to_variables(input: TokenStream) -> TokenStream {
         }
     };
 
-    println!("{output}");
-
     TokenStream::from(output)
 }
