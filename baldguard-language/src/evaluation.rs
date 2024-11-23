@@ -346,6 +346,13 @@ impl Variables {
         self.values.insert(name, value);
     }
 
+    pub fn remove(&mut self, name: &str) -> bool {
+        match self.values.remove(name) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.values.get(name)
     }
