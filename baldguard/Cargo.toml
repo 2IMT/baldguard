@@ -8,11 +8,11 @@ tokio = { version = "1.41.1", features = ["full"] }
 teloxide = { version = "0.13", features = ["macros"] }
 log = "0.4"
 pretty_env_logger = "0.5"
-unescape = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 futures = "0.3"
 baldguard-language = { path = "../baldguard-language" }
+derive-to-variables = { path = "../derive-to-variables" }
 
 [dependencies.mongodb]
 version = "3.1.0"
