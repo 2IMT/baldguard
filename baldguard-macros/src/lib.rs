@@ -262,3 +262,34 @@ pub fn set_from_assignment(input: TokenStream) -> TokenStream {
     }
     .into()
 }
+
+#[proc_macro_derive(ContainsVariable)]
+pub fn contains_variable(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let input = match parse(input, true) {
+        Ok(input) => input,
+        Err(e) => {
+            return e.to_compile_error().into();
+        }
+    };
+
+    let name = input.name;
+    let mut idents = Vec::new();
+    for field in input.fields {
+        idents.push(field.name);
+    }
+
+    quote! {
+        impl ::baldguard_language::evaluation::ContainsVariable for #name {
+            fn contains_variable(&self, identifier: &::std::primitive::str) -> bool {
+                match identifier {
+                    #(
+                        stringify!(#idents) => true,
+                    )*
+                    _ => false,
+                }
+            }
+        }
+    }
+    .into()
+}
