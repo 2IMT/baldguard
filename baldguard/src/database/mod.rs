@@ -14,6 +14,17 @@ pub struct Settings {
     pub filter_enabled: bool,
 }
 
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            debug_print: false,
+            report_filtered: true,
+            report_invalid_commands: true,
+            filter_enabled: true,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Chat {
     pub chat_id: i64,
@@ -26,12 +37,7 @@ impl Default for Chat {
         Chat {
             chat_id: 0,
             filter: None,
-            settings: Settings {
-                debug_print: false,
-                report_filtered: true,
-                report_invalid_commands: true,
-                filter_enabled: true,
-            },
+            settings: Settings::default(),
         }
     }
 }
