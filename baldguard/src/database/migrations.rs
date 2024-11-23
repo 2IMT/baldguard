@@ -65,7 +65,12 @@ async fn add_variables(db: Database) -> MigrationActionResult {
 
     while let Some(doc) = cursor.next().await {
         let mut doc = doc?;
-        doc.insert("variables", doc! {});
+        doc.insert(
+            "variables",
+            doc! {
+                "values": doc!{}
+            },
+        );
 
         chats
             .update_one(
