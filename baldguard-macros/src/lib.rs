@@ -232,7 +232,7 @@ pub fn set_from_assignment(input: TokenStream) -> TokenStream {
         cases.push(case);
     }
 
-    let output: TokenStream = quote! {
+    quote! {
         impl ::baldguard_language::evaluation::SetFromAssignment for #name {
             fn set_from_assignment(&mut self, assignment: ::baldguard_language::tree::Assignment)
             -> Result<(), ::baldguard_language::evaluation::EvaluationError> {
@@ -258,8 +258,5 @@ pub fn set_from_assignment(input: TokenStream) -> TokenStream {
             }
         }
     }
-    .into();
-
-    println!("{output}");
-    output
+    .into()
 }
