@@ -372,6 +372,16 @@ impl Session {
                                         }
                                     }
                                 }
+                                Command::GetVariables => {
+                                    if self.chat.variables.count() > 0 {
+                                        result.push(SendUpdate::Message(
+                                            self.chat.variables.show(false),
+                                        ));
+                                    } else {
+                                        command_failed = true;
+                                        result.push(SendUpdate::Message("no variables".to_string()))
+                                    }
+                                }
                                 Command::GetMessageVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
@@ -493,6 +503,7 @@ enum Command {
     SetOption(String),
     SetVariable(String),
     UnsetVariable(String),
+    GetVariables,
     GetMessageVariables,
     Help,
 }
@@ -544,6 +555,16 @@ impl Command {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
                     }
+                    "/get_variables" => {
+                        if let None = rest {
+                            Ok(Some(Command::GetVariables))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(
+                                first.to_string(),
+                                false,
+                            ))
+                        }
+                    }
                     "/get_message_variables" => {
                         if let None = rest {
                             Ok(Some(Command::GetMessageVariables))
@@ -582,6 +603,7 @@ impl Command {
             Command::Help => false,
             Command::SetVariable(_) => true,
             Command::UnsetVariable(_) => true,
+            Command::GetVariables => false,
         }
     }
 }
