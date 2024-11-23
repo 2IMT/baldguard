@@ -372,7 +372,7 @@ impl Session {
                                         }
                                     }
                                 }
-                                Command::GetVariables => {
+                                Command::GetMessageVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
                                         let variables = Variables::from(variables);
@@ -493,7 +493,7 @@ enum Command {
     SetOption(String),
     SetVariable(String),
     UnsetVariable(String),
-    GetVariables,
+    GetMessageVariables,
     Help,
 }
 
@@ -544,9 +544,9 @@ impl Command {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
                     }
-                    "/get_variables" => {
+                    "/get_message_variables" => {
                         if let None = rest {
-                            Ok(Some(Command::GetVariables))
+                            Ok(Some(Command::GetMessageVariables))
                         } else {
                             Err(CommandError::new_invalid_arguments(
                                 first.to_string(),
@@ -578,7 +578,7 @@ impl Command {
         match self {
             Command::SetFilter(_) => true,
             Command::SetOption(_) => true,
-            Command::GetVariables => false,
+            Command::GetMessageVariables => false,
             Command::Help => false,
             Command::SetVariable(_) => true,
             Command::UnsetVariable(_) => true,
