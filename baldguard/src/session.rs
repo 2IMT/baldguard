@@ -1,5 +1,5 @@
 use super::database::{Chat, Db};
-use super::language::{
+use baldguard_language::{
     evaluation::{evaluate, Value, Variables},
     grammar::ExpressionParser,
 };

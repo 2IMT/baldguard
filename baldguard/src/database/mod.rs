@@ -1,6 +1,7 @@
 mod migrations;
 
-use super::{error::GenericError, language::tree::Expression};
+use super::error::GenericError;
+use baldguard_language::tree::Expression;
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
