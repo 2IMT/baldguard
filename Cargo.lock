@@ -114,6 +114,7 @@ name = "baldguard"
 version = "0.1.0"
 dependencies = [
  "baldguard-language",
+ "derive-to-variables",
  "futures",
  "log",
  "mongodb",
@@ -122,7 +123,6 @@ dependencies = [
  "serde_json",
  "teloxide",
  "tokio",
- "unescape",
 ]
 
 [[package]]
@@ -409,7 +409,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive-into-variables"
+name = "derive-to-variables"
 version = "0.1.0"
 dependencies = [
  "quote",

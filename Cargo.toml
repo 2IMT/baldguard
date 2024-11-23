@@ -1,3 +1,3 @@
 [workspace]
-members = ["baldguard", "baldguard-language", "derive-into-variables"]
+members = ["baldguard", "baldguard-language", "derive-to-variables"]
 resolver = "2"
