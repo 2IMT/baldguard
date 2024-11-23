@@ -360,21 +360,27 @@ impl Variables {
     pub fn extend(&mut self, other: Self) {
         self.values.extend(other.values);
     }
-}
 
-impl Display for Variables {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    pub fn show(&self, omit_empty: bool) -> String {
         let mut res = String::with_capacity(500);
         for (key, value) in &self.values {
-            if let Value::Empty = value {
-                continue;
+            if omit_empty {
+                if let Value::Empty = value {
+                    continue;
+                }
             }
 
             let variable = format!("{key} = {value}\n");
             res.push_str(&variable);
         }
 
-        write!(f, "{res}")
+        return res;
+    }
+}
+
+impl Display for Variables {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.show(true))
     }
 }
 
