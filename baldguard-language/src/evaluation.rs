@@ -1,14 +1,23 @@
 use super::tree::{Assignment, Expression, Literal, Operator};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::From, fmt::Display, result::Result};
 
 pub type SetFromAssignmentResult = Result<(), EvaluationError>;
 
 pub trait SetFromAssignment {
-    fn set_from_assignment(&mut self, assignment: Assignment) -> SetFromAssignmentResult;
+    fn set_from_assignment(
+        &mut self,
+        assignment: &Assignment,
+        variables: &Variables,
+    ) -> SetFromAssignmentResult;
 }
 
-#[derive(Debug, Clone)]
+pub trait ContainsVariable {
+    fn contains_variable(&self, identifier: &str) -> bool;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Value {
     Int(i64),
     Str(String),
@@ -317,7 +326,7 @@ impl Value {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Variables {
     values: HashMap<String, Value>,
 }
@@ -333,28 +342,49 @@ impl Variables {
         }
     }
 
+    pub fn count(&self) -> usize {
+        self.values.len()
+    }
+
     pub fn put(&mut self, name: String, value: Value) {
         self.values.insert(name, value);
+    }
+
+    pub fn remove(&mut self, name: &str) -> bool {
+        match self.values.remove(name) {
+            Some(_) => true,
+            None => false,
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.values.get(name)
     }
-}
 
-impl Display for Variables {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    pub fn extend(&mut self, other: Self) {
+        self.values.extend(other.values);
+    }
+
+    pub fn show(&self, omit_empty: bool) -> String {
         let mut res = String::with_capacity(500);
         for (key, value) in &self.values {
-            if let Value::Empty = value {
-                continue;
+            if omit_empty {
+                if let Value::Empty = value {
+                    continue;
+                }
             }
 
             let variable = format!("{key} = {value}\n");
             res.push_str(&variable);
         }
 
-        write!(f, "{res}")
+        return res;
+    }
+}
+
+impl Display for Variables {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.show(true))
     }
 }
 
@@ -364,6 +394,28 @@ where
 {
     fn from(value: T) -> Self {
         value.to_variables()
+    }
+}
+
+impl SetFromAssignment for Variables {
+    fn set_from_assignment(
+        &mut self,
+        assignment: &Assignment,
+        variables: &Variables,
+    ) -> SetFromAssignmentResult {
+        match evaluate(&assignment.expression, variables) {
+            Ok(value) => {
+                self.put(assignment.identifier.clone(), value);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl ContainsVariable for Variables {
+    fn contains_variable(&self, identifier: &str) -> bool {
+        self.values.contains_key(identifier)
     }
 }
 

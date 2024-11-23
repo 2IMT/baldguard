@@ -1,7 +1,7 @@
 mod migrations;
 
 use super::error::GenericError;
-use baldguard_language::tree::Expression;
+use baldguard_language::{evaluation::Variables, tree::Expression};
 use baldguard_macros::SetFromAssignment;
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,7 @@ pub struct Chat {
     pub chat_id: i64,
     pub filter: Option<Expression>,
     pub settings: Settings,
+    pub variables: Variables,
 }
 
 impl Default for Chat {
@@ -41,6 +42,7 @@ impl Default for Chat {
             chat_id: 0,
             filter: None,
             settings: Settings::default(),
+            variables: Variables::new(),
         }
     }
 }

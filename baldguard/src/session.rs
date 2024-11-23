@@ -1,9 +1,9 @@
 use super::database::{Chat, Db};
 use baldguard_language::{
-    evaluation::{evaluate, SetFromAssignment, Value, Variables},
-    grammar::{AssignmentParser, ExpressionParser},
+    evaluation::{evaluate, ContainsVariable, SetFromAssignment, Value, Variables},
+    grammar::{AssignmentParser, ExpressionParser, IdentifierParser},
 };
-use baldguard_macros::ToVariables;
+use baldguard_macros::{ContainsVariable, ToVariables};
 use std::{
     error::Error,
     fmt::Display,
@@ -14,19 +14,33 @@ use teloxide::types::{ChatId, Message, MessageId, MessageOrigin};
 use tokio::sync::Mutex;
 
 const HELP_STRING: &str = "/set_filter <expr>
-changes current filter. expr should evaluate to bool value.
+change current filter. expr should evaluate to bool value.
+requires admin rights.
 
 /set_option <option> := <expr>
-sets an option. expr should evaluate to value of option's type.
+set an option.
 available options:
 - debug_print: bool
 - report_filtered: bool
 - report_invalid_commands: bool
 - filter_enabled: bool
 - report_command_success: bool
+expr should evaluate to value of option's type.
+requires admin rights.
+
+/set_variable <variable> := <expr>
+set a user variable.
+requires admin rights.
+
+/unset_variable <variable>
+unset a user variable.
+requires admin rights.
 
 /get_variables
-retrieve variables from reply message.
+display user variables.
+
+/get_message_variables
+display variables from message.
 
 /help
 display this message.";
@@ -41,11 +55,12 @@ pub struct Session {
     db: Arc<Mutex<Db>>,
     expression_parser: ExpressionParser,
     assignment_parser: AssignmentParser,
+    identifier_parser: IdentifierParser,
     chat: Chat,
     last_active: Instant,
 }
 
-#[derive(Debug, Clone, ToVariables)]
+#[derive(Debug, Clone, ToVariables, ContainsVariable)]
 struct MessageVariables {
     has_from: bool,
     from_id: Option<i64>,
@@ -229,6 +244,7 @@ impl Session {
             db,
             expression_parser: ExpressionParser::new(),
             assignment_parser: AssignmentParser::new(),
+            identifier_parser: IdentifierParser::new(),
             chat,
             last_active: Instant::now(),
         })
@@ -289,9 +305,10 @@ impl Session {
 
                                     match self.assignment_parser.parse(&arg) {
                                         Ok(assignment) => {
-                                            if let Err(e) =
-                                                self.chat.settings.set_from_assignment(assignment)
-                                            {
+                                            if let Err(e) = self.chat.settings.set_from_assignment(
+                                                &assignment,
+                                                &self.chat.variables,
+                                            ) {
                                                 command_failed = true;
                                                 result.push(SendUpdate::Message(format!(
                                                     "failed to set option: {e}"
@@ -306,7 +323,74 @@ impl Session {
                                         }
                                     }
                                 }
+                                Command::SetVariable(arg) => {
+                                    command_requires_success_report = true;
+
+                                    match self.assignment_parser.parse(&arg) {
+                                        Ok(assignment) => {
+                                            if MessageVariables::default()
+                                                .contains_variable(&assignment.identifier)
+                                            {
+                                                result.push(SendUpdate::Message(format!(
+                                                    "failed to set variable: \"{}\" is reserved",
+                                                    assignment.identifier
+                                                )));
+
+                                                command_failed = true;
+                                            } else {
+                                                if let Err(e) =
+                                                    self.chat.variables.set_from_assignment(
+                                                        &assignment,
+                                                        &self.chat.variables.clone(),
+                                                    )
+                                                {
+                                                    command_failed = true;
+                                                    result.push(SendUpdate::Message(format!(
+                                                        "failed to set variable: {e}"
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
+                                    }
+                                }
+                                Command::UnsetVariable(arg) => {
+                                    command_requires_success_report = true;
+
+                                    match self.identifier_parser.parse(&arg) {
+                                        Ok(identifier) => {
+                                            if !self.chat.variables.remove(&identifier) {
+                                                result.push(SendUpdate::Message(format!(
+                                                    "variable \"{identifier}\" does not exist"
+                                                )));
+
+                                                command_failed = true;
+                                            }
+                                        }
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
+                                    }
+                                }
                                 Command::GetVariables => {
+                                    if self.chat.variables.count() > 0 {
+                                        result.push(SendUpdate::Message(
+                                            self.chat.variables.show(false),
+                                        ));
+                                    } else {
+                                        command_failed = true;
+                                        result.push(SendUpdate::Message("no variables".to_string()))
+                                    }
+                                }
+                                Command::GetMessageVariables => {
                                     if let Some(message) = message.reply_to_message() {
                                         let variables = MessageVariables::from(message);
                                         let variables = Variables::from(variables);
@@ -340,7 +424,8 @@ impl Session {
 
         if !is_valid_command && self.chat.settings.filter_enabled {
             let variables = MessageVariables::from(&message);
-            let variables: Variables = Variables::from(variables);
+            let mut variables: Variables = Variables::from(variables);
+            variables.extend(self.chat.variables.clone());
             if let Some(filter) = &self.chat.filter {
                 match evaluate(filter, &variables) {
                     Ok(value) => match value {
@@ -424,7 +509,10 @@ type CommandResult = Result<Option<Command>, CommandError>;
 enum Command {
     SetFilter(String),
     SetOption(String),
+    SetVariable(String),
+    UnsetVariable(String),
     GetVariables,
+    GetMessageVariables,
     Help,
 }
 
@@ -461,9 +549,33 @@ impl Command {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
                     }
+                    "/set_variable" => {
+                        if let Some(arg) = rest {
+                            Ok(Some(Command::SetVariable(arg.to_string())))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
+                    "/unset_variable" => {
+                        if let Some(arg) = rest {
+                            Ok(Some(Command::UnsetVariable(arg.to_string())))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
                     "/get_variables" => {
                         if let None = rest {
                             Ok(Some(Command::GetVariables))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(
+                                first.to_string(),
+                                false,
+                            ))
+                        }
+                    }
+                    "/get_message_variables" => {
+                        if let None = rest {
+                            Ok(Some(Command::GetMessageVariables))
                         } else {
                             Err(CommandError::new_invalid_arguments(
                                 first.to_string(),
@@ -495,8 +607,11 @@ impl Command {
         match self {
             Command::SetFilter(_) => true,
             Command::SetOption(_) => true,
-            Command::GetVariables => false,
+            Command::GetMessageVariables => false,
             Command::Help => false,
+            Command::SetVariable(_) => true,
+            Command::UnsetVariable(_) => true,
+            Command::GetVariables => false,
         }
     }
 }
