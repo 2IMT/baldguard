@@ -13,6 +13,7 @@ pub struct Settings {
     pub report_filtered: bool,
     pub report_invalid_commands: bool,
     pub filter_enabled: bool,
+    pub report_command_success: bool,
 }
 
 impl Default for Settings {
@@ -22,6 +23,7 @@ impl Default for Settings {
             report_filtered: true,
             report_invalid_commands: true,
             filter_enabled: true,
+            report_command_success: true,
         }
     }
 }
