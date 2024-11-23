@@ -317,6 +317,10 @@ display this message."
             None => {}
         }
 
+        if is_valid_command && self.chat.settings.report_command_success {
+            result.push(SendUpdate::Message("success".to_string()));
+        }
+
         if !is_valid_command && self.chat.settings.filter_enabled {
             let variables = MessageVariables::from(&message);
             let variables: Variables = Variables::from(variables);
