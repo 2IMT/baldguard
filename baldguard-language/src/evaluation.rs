@@ -349,6 +349,10 @@ impl Variables {
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.values.get(name)
     }
+
+    pub fn extend(&mut self, other: Self) {
+        self.values.extend(other.values);
+    }
 }
 
 impl Display for Variables {
