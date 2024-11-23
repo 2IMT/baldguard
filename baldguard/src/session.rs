@@ -15,24 +15,32 @@ use tokio::sync::Mutex;
 
 const HELP_STRING: &str = "/set_filter <expr>
 change current filter. expr should evaluate to bool value.
+requires admin rights.
 
 /set_option <option> := <expr>
-set an option. expr should evaluate to value of option's type.
+set an option.
 available options:
 - debug_print: bool
 - report_filtered: bool
 - report_invalid_commands: bool
 - filter_enabled: bool
 - report_command_success: bool
+expr should evaluate to value of option's type.
+requires admin rights.
 
 /set_variable <variable> := <expr>
-set a variable.
+set a user variable.
+requires admin rights.
 
 /unset_variable <variable>
-unset a variable.
+unset a user variable.
+requires admin rights.
 
 /get_variables
-retrieve variables from reply message.
+display user variables.
+
+/get_message_variables
+display variables from message.
 
 /help
 display this message.";
