@@ -13,6 +13,24 @@ use std::{
 use teloxide::types::{ChatId, Message, MessageId, MessageOrigin};
 use tokio::sync::Mutex;
 
+const HELP_STRING: &str = "/set_filter <expr>
+changes current filter. expr should evaluate to bool value.
+
+/set_option <option> := <expr>
+sets an option. expr should evaluate to value of option's type.
+available options:
+- debug_print: bool
+- report_filtered: bool
+- report_invalid_commands: bool
+- filter_enabled: bool
+- report_command_success: bool
+
+/get_variables
+retrieve variables from reply message.
+
+/help
+display this message.";
+
 pub enum SendUpdate {
     Message(String),
     DeleteMessage(MessageId),
@@ -297,26 +315,9 @@ impl Session {
                                         ));
                                     }
                                 }
-                                Command::Help => result.push(SendUpdate::Message(
-                                    "/set_filter <expr>
-changes current filter. expr should evaluate to bool value.
-
-/set_option <option> := <expr>
-sets an option. expr should evaluate to value of option's type.
-available options:
-- debug_print: bool
-- report_filtered: bool
-- report_invalid_commands: bool
-- filter_enabled: bool
-- report_command_success: bool
-
-/get_variables
-retrieve variables from reply message.
-
-/help
-display this message."
-                                        .to_string(),
-                                )),
+                                Command::Help => {
+                                    result.push(SendUpdate::Message(HELP_STRING.to_string()))
+                                }
                             }
                         }
                     }
