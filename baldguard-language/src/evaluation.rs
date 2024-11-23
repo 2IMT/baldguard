@@ -342,6 +342,10 @@ impl Variables {
         }
     }
 
+    pub fn count(&self) -> usize {
+        self.values.len()
+    }
+
     pub fn put(&mut self, name: String, value: Value) {
         self.values.insert(name, value);
     }
