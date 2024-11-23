@@ -1,5 +1,6 @@
 use super::tree::{Assignment, Expression, Literal, Operator};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::From, fmt::Display, result::Result};
 
 pub type SetFromAssignmentResult = Result<(), EvaluationError>;
@@ -8,7 +9,7 @@ pub trait SetFromAssignment {
     fn set_from_assignment(&mut self, assignment: Assignment) -> SetFromAssignmentResult;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Value {
     Int(i64),
     Str(String),
@@ -317,7 +318,7 @@ impl Value {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Variables {
     values: HashMap<String, Value>,
 }
