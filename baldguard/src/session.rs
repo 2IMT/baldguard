@@ -298,9 +298,12 @@ impl Session {
                                                 )));
                                             }
                                         }
-
-                                        Err(e) => result
-                                            .push(SendUpdate::Message(format!("parse error: {e}"))),
+                                        Err(e) => {
+                                            command_failed = true;
+                                            result.push(SendUpdate::Message(format!(
+                                                "parse error: {e}"
+                                            )))
+                                        }
                                     }
                                 }
                                 Command::GetVariables => {
