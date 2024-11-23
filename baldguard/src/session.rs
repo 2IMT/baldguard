@@ -1,7 +1,7 @@
 use super::database::{Chat, Db};
 use baldguard_language::{
-    evaluation::{evaluate, Value, Variables},
-    grammar::ExpressionParser,
+    evaluation::{evaluate, SetFromAssignment, Value, Variables},
+    grammar::{AssignmentParser, ExpressionParser},
 };
 use baldguard_macros::ToVariables;
 use std::{
@@ -21,9 +21,9 @@ pub enum SendUpdate {
 pub struct Session {
     chat_id: ChatId,
     db: Arc<Mutex<Db>>,
-    parser: ExpressionParser,
+    expression_parser: ExpressionParser,
+    assignment_parser: AssignmentParser,
     chat: Chat,
-    variables: Variables,
     last_active: Instant,
 }
 
@@ -209,9 +209,9 @@ impl Session {
         Ok(Session {
             chat_id,
             db,
-            parser: ExpressionParser::new(),
+            expression_parser: ExpressionParser::new(),
+            assignment_parser: AssignmentParser::new(),
             chat,
-            variables: Variables::new(),
             last_active: Instant::now(),
         })
     }
@@ -251,76 +251,24 @@ impl Session {
                         } else {
                             is_valid_command = true;
                             match command {
-                                Command::SetFilter(arg) => match self.parser.parse(&arg) {
+                                Command::SetFilter(arg) => match self.expression_parser.parse(&arg)
+                                {
                                     Ok(expression) => self.chat.filter = Some(*expression),
                                     Err(e) => result
                                         .push(SendUpdate::Message(format!("parse error: {e}"))),
                                 },
-                                Command::SetDebugPrint(arg) => match self.parser.parse(&arg) {
-                                    Ok(expression) => {
-                                        match evaluate(&expression, &self.variables) {
-                                            Ok(value) => match value {
-                                                Value::Bool(value) => {
-                                                    self.chat.settings.debug_print = value;
-                                                }
-                                                _ => result.push(SendUpdate::Message(
-                                                    "error: expression evaluated to non-bool value"
-                                                        .to_string(),
-                                                )),
-                                            },
-                                            Err(e) => {
-                                                result.push(SendUpdate::Message(format!(
-                                                    "error: failed to evaluate expression: {e}"
-                                                )));
-                                            }
+                                Command::SetOption(arg) => match self.assignment_parser.parse(&arg)
+                                {
+                                    Ok(assignment) => {
+                                        if let Err(e) =
+                                            self.chat.settings.set_from_assignment(assignment)
+                                        {
+                                            result.push(SendUpdate::Message(format!(
+                                                "failed to set option: {e}"
+                                            )));
                                         }
                                     }
-                                    Err(e) => result
-                                        .push(SendUpdate::Message(format!("parse error: {e}"))),
-                                },
-                                Command::SetReportInvalidCommands(arg) => {
-                                    match self.parser.parse(&arg) {
-                                        Ok(expression) => {
-                                            match evaluate(&expression, &self.variables) {
-                                                Ok(value) => match value {
-                                                    Value::Bool(value) => {
-                                                        self.chat.settings.report_invalid_commands = value;
-                                                    }
-                                                    _ => result.push(SendUpdate::Message(
-                                                        "error: expression evaluated to non-bool value"
-                                                            .to_string(),
-                                                    )),
-                                                },
-                                                Err(e) => {
-                                                    result.push(SendUpdate::Message(format!(
-                                                        "error: failed to evaluate expression: {e}"
-                                                    )));
-                                                }
-                                            }
-                                        }
-                                        Err(e) => result
-                                            .push(SendUpdate::Message(format!("parse error: {e}"))),
-                                    }
-                                }
-                                Command::SetReportFiltered(arg) => match self.parser.parse(&arg) {
-                                    Ok(expression) => {
-                                        match evaluate(&expression, &self.variables) {
-                                            Ok(value) => match value {
-                                                Value::Bool(value) => {
-                                                    self.chat.settings.report_filtered = value;
-                                                }
-                                                _ => result.push(SendUpdate::Message(
-                                                    "error: expression evaluated to non-bool value"
-                                                        .to_string(),
-                                                )),
-                                            },
-                                            Err(e) => {
-                                                result.push(SendUpdate::Message(format!(
-                                                    "error: failed to evaluate expression: {e}"
-                                                )));
-                                            }
-                                        }
-                                    }
+
                                     Err(e) => result
                                         .push(SendUpdate::Message(format!("parse error: {e}"))),
                                 },
@@ -339,8 +287,13 @@ impl Session {
                                     "/set_filter <expr>
 changes current filter. expr should evaluate to bool value.
 
-/set_enabled <expr>
-enables or disables the filter. expr should evaluate to bool value.
+/set_option <option> := <expr>
+sets an option. expr should evaluate to value of option's type.
+available options:
+- debug_print: bool
+- report_filtered: bool
+- report_invalid_commands: bool
+- filter_enabled: bool
 
 /set_debug_print <expr>
 enables or disables debug print. expr should evaluate to bool value.
@@ -355,28 +308,6 @@ retrieve variables from reply message.
 display this message."
                                         .to_string(),
                                 )),
-                                Command::SetEnabled(arg) => match self.parser.parse(&arg) {
-                                    Ok(expression) => {
-                                        match evaluate(&expression, &self.variables) {
-                                            Ok(value) => match value {
-                                                Value::Bool(value) => {
-                                                    self.chat.settings.filter_enabled = value;
-                                                }
-                                                _ => result.push(SendUpdate::Message(
-                                                    "error: expression evaluated to non-bool value"
-                                                        .to_string(),
-                                                )),
-                                            },
-                                            Err(e) => {
-                                                result.push(SendUpdate::Message(format!(
-                                                    "error: failed to evaluate expression: {e}"
-                                                )));
-                                            }
-                                        }
-                                    }
-                                    Err(e) => result
-                                        .push(SendUpdate::Message(format!("parse error: {e}"))),
-                                },
                             }
                         }
                     }
@@ -471,10 +402,7 @@ type CommandResult = Result<Option<Command>, CommandError>;
 
 enum Command {
     SetFilter(String),
-    SetEnabled(String),
-    SetDebugPrint(String),
-    SetReportInvalidCommands(String),
-    SetReportFiltered(String),
+    SetOption(String),
     GetVariables,
     Help,
 }
@@ -505,30 +433,9 @@ impl Command {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
                     }
-                    "/set_enabled" => {
+                    "/set_option" => {
                         if let Some(arg) = rest {
-                            Ok(Some(Command::SetEnabled(arg.to_string())))
-                        } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
-                        }
-                    }
-                    "/set_debug_print" => {
-                        if let Some(arg) = rest {
-                            Ok(Some(Command::SetDebugPrint(arg.to_string())))
-                        } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
-                        }
-                    }
-                    "/set_report_invalid_commands" => {
-                        if let Some(arg) = rest {
-                            Ok(Some(Command::SetReportInvalidCommands(arg.to_string())))
-                        } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
-                        }
-                    }
-                    "/set_report_filtered" => {
-                        if let Some(arg) = rest {
-                            Ok(Some(Command::SetReportFiltered(arg.to_string())))
+                            Ok(Some(Command::SetOption(arg.to_string())))
                         } else {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
                         }
@@ -566,12 +473,9 @@ impl Command {
     fn requires_admin_rights(&self) -> bool {
         match self {
             Command::SetFilter(_) => true,
-            Command::SetEnabled(_) => true,
-            Command::SetDebugPrint(_) => true,
-            Command::SetReportInvalidCommands(_) => true,
+            Command::SetOption(_) => true,
             Command::GetVariables => false,
             Command::Help => false,
-            Command::SetReportFiltered(_) => true,
         }
     }
 }
