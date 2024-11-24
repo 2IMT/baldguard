@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use mongodb::{
-    bson::{doc, spec::ElementType, Bson, Document},
+    bson::{doc, Bson, Document},
     Collection, Database,
 };
 use std::{error::Error, future::Future, pin::Pin};
