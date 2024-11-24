@@ -1,5 +1,8 @@
 use futures::StreamExt;
-use mongodb::{bson::doc, bson::Document, Collection, Database};
+use mongodb::{
+    bson::{doc, Bson, Document},
+    Collection, Database,
+};
 use std::{error::Error, future::Future, pin::Pin};
 
 async fn move_filter_enabled_to_settings(db: Database) -> MigrationActionResult {
@@ -87,6 +90,30 @@ async fn add_variables(db: Database) -> MigrationActionResult {
     Ok(())
 }
 
+async fn nullify_all_filters_after_filter_schema_change(db: Database) -> MigrationActionResult {
+    let chats: Collection<Document> = db.collection("chats");
+    let mut cursor = chats.find(doc! {}).await?;
+
+    while let Some(doc) = cursor.next().await {
+        let doc = doc?;
+        let filter = Bson::Null;
+
+        chats
+            .update_one(
+                doc! {
+                    "_id" : doc.get("_id").unwrap()
+                },
+                doc! {
+                    "$set": {
+                        "filter" : filter
+                    }
+                },
+            )
+            .await?;
+    }
+    Ok(())
+}
+
 pub fn get_vec() -> Vec<MigrationAction> {
     macro_rules! migration_action {
         ($name:ident) => {
@@ -107,7 +134,8 @@ pub fn get_vec() -> Vec<MigrationAction> {
     migration_actions![
         move_filter_enabled_to_settings,
         add_report_command_success_to_settings,
-        add_variables
+        add_variables,
+        nullify_all_filters_after_filter_schema_change
     ]
 }
 
