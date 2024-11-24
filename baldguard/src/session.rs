@@ -1,4 +1,4 @@
-use super::database::{Chat, Db};
+use super::database::{Chat, Db, Filter};
 use baldguard_language::{
     evaluation::{evaluate, ContainsVariable, SetFromAssignment, Value, Variables},
     grammar::{AssignmentParser, ExpressionParser, IdentifierParser},
@@ -294,7 +294,10 @@ impl Session {
                                     command_requires_success_report = true;
 
                                     match self.expression_parser.parse(&arg) {
-                                        Ok(expression) => self.chat.filter = Some(*expression),
+                                        Ok(expression) => {
+                                            self.chat.filter =
+                                                Some(Filter::new(arg.clone(), *expression))
+                                        }
                                         Err(e) => {
                                             command_failed = true;
                                             result.push(SendUpdate::Message(format!(
@@ -434,7 +437,7 @@ impl Session {
             let mut variables: Variables = Variables::from(variables);
             variables.extend(self.chat.variables.clone());
             if let Some(filter) = &self.chat.filter {
-                match evaluate(filter, &variables) {
+                match evaluate(&filter.expression, &variables) {
                     Ok(value) => match value {
                         Value::Bool(value) => {
                             if value {

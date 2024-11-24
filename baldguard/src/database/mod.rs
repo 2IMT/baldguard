@@ -29,9 +29,21 @@ impl Default for Settings {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Filter {
+    pub text: String,
+    pub expression: Expression,
+}
+
+impl Filter {
+    pub fn new(text: String, expression: Expression) -> Self {
+        Self { text, expression }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Chat {
     pub chat_id: i64,
-    pub filter: Option<Expression>,
+    pub filter: Option<Filter>,
     pub settings: Settings,
     pub variables: Variables,
 }
