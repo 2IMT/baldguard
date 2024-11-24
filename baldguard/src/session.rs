@@ -28,6 +28,9 @@ available options:
 expr should evaluate to value of option's type.
 requires admin rights.
 
+/get_options
+display current options.
+
 /set_variable <variable> := <expr>
 set a user variable.
 requires admin rights.
