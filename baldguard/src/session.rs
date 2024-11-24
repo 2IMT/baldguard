@@ -17,6 +17,9 @@ const HELP_STRING: &str = "/set_filter <expr>
 change current filter. expr should evaluate to bool value.
 requires admin rights.
 
+/get_filter
+display current filter.
+
 /set_option <option> := <expr>
 set an option.
 available options:
@@ -278,6 +281,7 @@ impl Session {
         self.refresh();
 
         let mut result = Vec::with_capacity(5);
+
         let mut is_valid_command = false;
         let mut command_failed = false;
         let mut command_requires_success_report = false;
