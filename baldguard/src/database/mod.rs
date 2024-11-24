@@ -2,12 +2,12 @@ mod migrations;
 
 use super::error::GenericError;
 use baldguard_language::{evaluation::Variables, tree::Expression};
-use baldguard_macros::SetFromAssignment;
+use baldguard_macros::{SetFromAssignment, ToVariables};
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-#[derive(Serialize, Deserialize, Clone, Debug, SetFromAssignment)]
+#[derive(Serialize, Deserialize, Clone, Debug, SetFromAssignment, ToVariables)]
 pub struct Settings {
     pub debug_print: bool,
     pub report_filtered: bool,
