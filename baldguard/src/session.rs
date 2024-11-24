@@ -323,6 +323,10 @@ impl Session {
                                         }
                                     }
                                 }
+                                Command::GetOptions => {
+                                    let variables = Variables::from(self.chat.settings.clone());
+                                    result.push(SendUpdate::Message(variables.show(false)));
+                                }
                                 Command::SetVariable(arg) => {
                                     command_requires_success_report = true;
 
@@ -509,6 +513,7 @@ type CommandResult = Result<Option<Command>, CommandError>;
 enum Command {
     SetFilter(String),
     SetOption(String),
+    GetOptions,
     SetVariable(String),
     UnsetVariable(String),
     GetVariables,
@@ -547,6 +552,16 @@ impl Command {
                             Ok(Some(Command::SetOption(arg.to_string())))
                         } else {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
+                    "/get_options" => {
+                        if let None = rest {
+                            Ok(Some(Command::GetOptions))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(
+                                first.to_string(),
+                                false,
+                            ))
                         }
                     }
                     "/set_variable" => {
@@ -612,6 +627,7 @@ impl Command {
             Command::SetVariable(_) => true,
             Command::UnsetVariable(_) => true,
             Command::GetVariables => false,
+            Command::GetOptions => false,
         }
     }
 }
