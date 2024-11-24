@@ -306,6 +306,16 @@ impl Session {
                                         }
                                     }
                                 }
+                                Command::GetFilter => match &self.chat.filter {
+                                    Some(filter) => {
+                                        result.push(SendUpdate::Message(filter.text.clone()));
+                                    }
+                                    None => {
+                                        command_failed = true;
+                                        result
+                                            .push(SendUpdate::Message("no filter set".to_string()));
+                                    }
+                                },
                                 Command::SetOption(arg) => {
                                     command_requires_success_report = true;
 
@@ -518,6 +528,7 @@ type CommandResult = Result<Option<Command>, CommandError>;
 
 enum Command {
     SetFilter(String),
+    GetFilter,
     SetOption(String),
     GetOptions,
     SetVariable(String),
@@ -551,6 +562,16 @@ impl Command {
                             Ok(Some(Command::SetFilter(arg.to_string())))
                         } else {
                             Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                        }
+                    }
+                    "/get_filter" => {
+                        if let None = rest {
+                            Ok(Some(Command::GetFilter))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(
+                                first.to_string(),
+                                false,
+                            ))
                         }
                     }
                     "/set_option" => {
@@ -634,6 +655,7 @@ impl Command {
             Command::UnsetVariable(_) => true,
             Command::GetVariables => false,
             Command::GetOptions => false,
+            Command::GetFilter => false,
         }
     }
 }
