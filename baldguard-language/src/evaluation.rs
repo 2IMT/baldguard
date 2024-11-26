@@ -297,10 +297,16 @@ impl Value {
     pub fn divide(&self, other: &Self) -> ValueResult {
         match self {
             Value::Int(l) => match other {
-                Value::Int(r) => Ok(Value::Int(*l - *r)),
-                _ => Err(ValueError::new_binary(self.clone(), "-", other.clone())),
+                Value::Int(r) => {
+                    if *r == 0 {
+                        Err(ValueError::new_division_by_zero(self.clone()))
+                    } else {
+                        Ok(Value::Int(*l / *r))
+                    }
+                }
+                _ => Err(ValueError::new_binary(self.clone(), "/", other.clone())),
             },
-            _ => Err(ValueError::new_binary(self.clone(), "-", other.clone())),
+            _ => Err(ValueError::new_binary(self.clone(), "/", other.clone())),
         }
     }
 
