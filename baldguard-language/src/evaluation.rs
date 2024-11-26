@@ -154,6 +154,16 @@ impl Value {
         }
     }
 
+    pub fn and_short_circuit(&self) -> Option<Value> {
+        if let Value::Bool(l) = self {
+            if !(*l) {
+                return Some(Value::Bool(false));
+            }
+        }
+
+        None
+    }
+
     pub fn nand(&self, other: &Self) -> ValueResult {
         match self {
             Value::Bool(l) => match other {
@@ -162,6 +172,16 @@ impl Value {
             },
             _ => Err(ValueError::new_binary(self.clone(), "nand", other.clone())),
         }
+    }
+
+    pub fn nand_short_circuit(&self) -> Option<Value> {
+        if let Value::Bool(l) = self {
+            if !(*l) {
+                return Some(Value::Bool(true));
+            }
+        }
+
+        None
     }
 
     pub fn or(&self, other: &Self) -> ValueResult {
@@ -174,6 +194,16 @@ impl Value {
         }
     }
 
+    pub fn or_short_circuit(&self) -> Option<Value> {
+        if let Value::Bool(l) = self {
+            if *l {
+                return Some(Value::Bool(true));
+            }
+        }
+
+        None
+    }
+
     pub fn nor(&self, other: &Self) -> ValueResult {
         match self {
             Value::Bool(l) => match other {
@@ -182,6 +212,16 @@ impl Value {
             },
             _ => Err(ValueError::new_binary(self.clone(), "nor", other.clone())),
         }
+    }
+
+    pub fn nor_short_circuit(&self) -> Option<Value> {
+        if let Value::Bool(l) = self {
+            if *l {
+                return Some(Value::Bool(false));
+            }
+        }
+
+        None
     }
 
     pub fn xor(&self, other: &Self) -> ValueResult {
@@ -462,21 +502,32 @@ pub fn evaluate(e: &Expression, v: &Variables) -> EvaluationResult {
             right,
         } => {
             let left = evaluate(left, v)?;
-            let right = evaluate(right, v)?;
 
             match operator {
-                Operator::And => Ok(left.and(&right)?),
-                Operator::Nand => Ok(left.nand(&right)?),
-                Operator::Or => Ok(left.or(&right)?),
-                Operator::Nor => Ok(left.nor(&right)?),
-                Operator::Xor => Ok(left.xor(&right)?),
-                Operator::Equal => Ok(left.equal(&right)?),
-                Operator::NotEqual => Ok(left.not_equal(&right)?),
-                Operator::Plus => Ok(left.plus(&right)?),
-                Operator::Minus => Ok(left.minus(&right)?),
-                Operator::Multiply => Ok(left.multiply(&right)?),
-                Operator::Divide => Ok(left.divide(&right)?),
-                Operator::Matches => Ok(left.matches(&right)?),
+                Operator::And => match left.and_short_circuit() {
+                    Some(value) => Ok(value),
+                    None => Ok(left.and(&evaluate(right, v)?)?),
+                },
+                Operator::Nand => match left.nand_short_circuit() {
+                    Some(value) => Ok(value),
+                    None => Ok(left.nand(&evaluate(right, v)?)?),
+                },
+                Operator::Or => match left.or_short_circuit() {
+                    Some(value) => Ok(value),
+                    None => Ok(left.or(&evaluate(right, v)?)?),
+                },
+                Operator::Nor => match left.nor_short_circuit() {
+                    Some(value) => Ok(value),
+                    None => Ok(left.nor(&evaluate(right, v)?)?),
+                },
+                Operator::Xor => Ok(left.xor(&evaluate(right, v)?)?),
+                Operator::Equal => Ok(left.equal(&evaluate(right, v)?)?),
+                Operator::NotEqual => Ok(left.not_equal(&evaluate(right, v)?)?),
+                Operator::Plus => Ok(left.plus(&evaluate(right, v)?)?),
+                Operator::Minus => Ok(left.minus(&evaluate(right, v)?)?),
+                Operator::Multiply => Ok(left.multiply(&evaluate(right, v)?)?),
+                Operator::Divide => Ok(left.divide(&evaluate(right, v)?)?),
+                Operator::Matches => Ok(left.matches(&evaluate(right, v)?)?),
                 _ => panic!("invalid binary operation {:?}", operator),
             }
         }
