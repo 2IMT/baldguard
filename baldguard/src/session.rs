@@ -432,6 +432,26 @@ impl Session {
                                         ));
                                     }
                                 }
+                                Command::Eval(arg) => match self.expression_parser.parse(&arg) {
+                                    Ok(expression) => {
+                                        match evaluate(&expression, &self.chat.variables) {
+                                            Ok(value) => {
+                                                result.push(SendUpdate::Message(value.to_string()))
+                                            }
+                                            Err(e) => {
+                                                command_failed = true;
+                                                result.push(SendUpdate::Message(format!(
+                                                    "error: failed to evalute expression: {e}"
+                                                )));
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        command_failed = true;
+                                        result
+                                            .push(SendUpdate::Message(format!("parse error: {e}")))
+                                    }
+                                },
                                 Command::Help => {
                                     result.push(SendUpdate::Message(HELP_STRING.to_string()))
                                 }
@@ -545,6 +565,7 @@ enum Command {
     UnsetVariable(String),
     GetVariables,
     GetMessageVariables,
+    Eval(String),
     Help,
 }
 
@@ -657,6 +678,16 @@ impl Command {
                             ))
                         }
                     }
+                    "/eval" => {
+                        if let Some(arg) = arg {
+                            Ok(Some(Command::Eval(arg.to_string())))
+                        } else {
+                            Err(CommandError::new_invalid_arguments(
+                                command.to_string(),
+                                true,
+                            ))
+                        }
+                    }
                     "/help" => {
                         if let None = arg {
                             Ok(Some(Command::Help))
@@ -688,6 +719,7 @@ impl Command {
             Command::GetVariables => false,
             Command::GetOptions => false,
             Command::GetFilter => false,
+            Command::Eval(_) => false,
         }
     }
 }
