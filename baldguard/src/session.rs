@@ -48,6 +48,9 @@ display user variables.
 /get_message_variables
 display variables from message.
 
+/eval <expr>
+evaluate the expression.
+
 /help
 display this message.";
 
