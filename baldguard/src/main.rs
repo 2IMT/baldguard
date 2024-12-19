@@ -65,9 +65,24 @@ async fn main() {
     tokio::spawn(async move { session_cleanup_routine(sessions_clone) });
 
     let bot = Bot::new(token);
+    let bot_username = match bot.get_me().await {
+        Ok(me) => match &me.username {
+            Some(username) => username.clone(),
+            None => {
+                log::error!("Bot has no username");
+                exit(1);
+            }
+        },
+        Err(e) => {
+            log::error!("Failed to GetMe: {e}");
+            exit(1);
+        }
+    };
+    let bot_username = Arc::new(bot_username);
     teloxide::repl(bot, move |bot: Bot, message: Message| {
         let sessions = Arc::clone(&sessions);
         let database = Arc::clone(&database);
+        let bot_username = Arc::clone(&bot_username);
         async move {
             let chat_id = message.chat.id;
             let mut sessions_lock = sessions.lock().await;
@@ -75,7 +90,7 @@ async fn main() {
             let session = if sessions_lock.contains_key(&chat_id) {
                 sessions_lock.get_mut(&chat_id).unwrap()
             } else {
-                match Session::new(database, chat_id).await {
+                match Session::new(database, chat_id, bot_username.as_ref().clone()).await {
                     Ok(session) => {
                         log::info!("Opening session for {chat_id}");
                         sessions_lock.insert(chat_id, session);

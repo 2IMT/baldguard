@@ -58,6 +58,7 @@ pub enum SendUpdate {
 
 pub struct Session {
     chat_id: ChatId,
+    bot_username: String,
     db: Arc<Mutex<Db>>,
     expression_parser: ExpressionParser,
     assignment_parser: AssignmentParser,
@@ -241,12 +242,17 @@ impl From<&Message> for MessageVariables {
 }
 
 impl Session {
-    pub async fn new(db: Arc<Mutex<Db>>, chat_id: ChatId) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(
+        db: Arc<Mutex<Db>>,
+        chat_id: ChatId,
+        bot_username: String,
+    ) -> Result<Self, Box<dyn Error>> {
         let db_lock = db.lock().await;
         let chat = db_lock.find_chat_by_id(chat_id.0).await?;
         drop(db_lock);
         Ok(Session {
             chat_id,
+            bot_username,
             db,
             expression_parser: ExpressionParser::new(),
             assignment_parser: AssignmentParser::new(),
