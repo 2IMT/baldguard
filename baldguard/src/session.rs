@@ -58,6 +58,7 @@ pub enum SendUpdate {
 
 pub struct Session {
     chat_id: ChatId,
+    bot_username: String,
     db: Arc<Mutex<Db>>,
     expression_parser: ExpressionParser,
     assignment_parser: AssignmentParser,
@@ -241,12 +242,17 @@ impl From<&Message> for MessageVariables {
 }
 
 impl Session {
-    pub async fn new(db: Arc<Mutex<Db>>, chat_id: ChatId) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(
+        db: Arc<Mutex<Db>>,
+        chat_id: ChatId,
+        bot_username: String,
+    ) -> Result<Self, Box<dyn Error>> {
         let db_lock = db.lock().await;
         let chat = db_lock.find_chat_by_id(chat_id.0).await?;
         drop(db_lock);
         Ok(Session {
             chat_id,
+            bot_username,
             db,
             expression_parser: ExpressionParser::new(),
             assignment_parser: AssignmentParser::new(),
@@ -286,7 +292,7 @@ impl Session {
         let mut command_failed = false;
         let mut command_requires_success_report = false;
         match message.text() {
-            Some(text) => match Command::new(text) {
+            Some(text) => match Command::new(text, &self.bot_username) {
                 Ok(command) => {
                     if let Some(command) = command {
                         if command.requires_admin_rights() && !from_admin {
@@ -542,8 +548,11 @@ enum Command {
     Help,
 }
 
-fn split_first_word(text: &str) -> (&str, Option<&str>) {
-    if let Some(pos) = text.find(char::is_whitespace) {
+fn split_first_word<P>(text: &str, pat: P) -> (&str, Option<&str>)
+where
+    P: FnMut(char) -> bool,
+{
+    if let Some(pos) = text.find(pat) {
         let first_word = &text[..pos];
         let rest = &text[pos + 1..].trim_start();
         (first_word, if rest.is_empty() { None } else { Some(rest) })
@@ -555,91 +564,110 @@ fn split_first_word(text: &str) -> (&str, Option<&str>) {
 }
 
 impl Command {
-    fn new(text: &str) -> CommandResult {
+    fn new(text: &str, bot_username: &str) -> CommandResult {
         if let Some(ch) = text.chars().nth(0) {
             if ch == '/' {
-                let (first, rest) = split_first_word(text);
+                let (command, arg) = split_first_word(text, char::is_whitespace);
+                let (command, for_bot_username) = split_first_word(command, |c| c == '@');
 
-                match first {
+                if let Some(for_bot_username) = for_bot_username {
+                    if for_bot_username != bot_username {
+                        return Ok(None);
+                    }
+                }
+
+                match command {
                     "/set_filter" => {
-                        if let Some(arg) = rest {
+                        if let Some(arg) = arg {
                             Ok(Some(Command::SetFilter(arg.to_string())))
                         } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                            Err(CommandError::new_invalid_arguments(
+                                command.to_string(),
+                                true,
+                            ))
                         }
                     }
                     "/get_filter" => {
-                        if let None = rest {
+                        if let None = arg {
                             Ok(Some(Command::GetFilter))
                         } else {
                             Err(CommandError::new_invalid_arguments(
-                                first.to_string(),
+                                command.to_string(),
                                 false,
                             ))
                         }
                     }
                     "/set_option" => {
-                        if let Some(arg) = rest {
+                        if let Some(arg) = arg {
                             Ok(Some(Command::SetOption(arg.to_string())))
                         } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                            Err(CommandError::new_invalid_arguments(
+                                command.to_string(),
+                                true,
+                            ))
                         }
                     }
                     "/get_options" => {
-                        if let None = rest {
+                        if let None = arg {
                             Ok(Some(Command::GetOptions))
                         } else {
                             Err(CommandError::new_invalid_arguments(
-                                first.to_string(),
+                                command.to_string(),
                                 false,
                             ))
                         }
                     }
                     "/set_variable" => {
-                        if let Some(arg) = rest {
+                        if let Some(arg) = arg {
                             Ok(Some(Command::SetVariable(arg.to_string())))
                         } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                            Err(CommandError::new_invalid_arguments(
+                                command.to_string(),
+                                true,
+                            ))
                         }
                     }
                     "/unset_variable" => {
-                        if let Some(arg) = rest {
+                        if let Some(arg) = arg {
                             Ok(Some(Command::UnsetVariable(arg.to_string())))
                         } else {
-                            Err(CommandError::new_invalid_arguments(first.to_string(), true))
+                            Err(CommandError::new_invalid_arguments(
+                                command.to_string(),
+                                true,
+                            ))
                         }
                     }
                     "/get_variables" => {
-                        if let None = rest {
+                        if let None = arg {
                             Ok(Some(Command::GetVariables))
                         } else {
                             Err(CommandError::new_invalid_arguments(
-                                first.to_string(),
+                                command.to_string(),
                                 false,
                             ))
                         }
                     }
                     "/get_message_variables" => {
-                        if let None = rest {
+                        if let None = arg {
                             Ok(Some(Command::GetMessageVariables))
                         } else {
                             Err(CommandError::new_invalid_arguments(
-                                first.to_string(),
+                                command.to_string(),
                                 false,
                             ))
                         }
                     }
                     "/help" => {
-                        if let None = rest {
+                        if let None = arg {
                             Ok(Some(Command::Help))
                         } else {
                             Err(CommandError::new_invalid_arguments(
-                                first.to_string(),
+                                command.to_string(),
                                 false,
                             ))
                         }
                     }
-                    _ => Err(CommandError::new_invalid_command(first.to_string())),
+                    _ => Err(CommandError::new_invalid_command(command.to_string())),
                 }
             } else {
                 Ok(None)
